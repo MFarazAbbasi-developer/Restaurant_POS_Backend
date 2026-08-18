@@ -1,0 +1,187 @@
+// Faraz POS - Prisma Database Schema
+// Multi-Tenant Restaurant Point of Sale & Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// 1. Restaurant (Tenant)
+// -----------------------------------------------------------------------------
+model Restaurant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  phone     String?
+  address   String?
+  logo      String?
+  currency  String   @default("USD")
+  timezone  String   @default("UTC")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  users     User[]
+  roles     Role[]
+  auditLogs AuditLog[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@map("restaurants")
+}
+
+// -----------------------------------------------------------------------------
+// 2. User
+// -----------------------------------------------------------------------------
+model User {
+  id           String    @id @default(uuid())
+  restaurantId String
+  name         String
+  username     String
+  pinHash      String
+  passwordHash String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relationships
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userRoles  UserRole[]
+  sessions   Session[]
+  auditLogs  AuditLog[]
+
+  @@unique([restaurantId, username])
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// 3. Role
+// -----------------------------------------------------------------------------
+model Role {
+  id           String   @id @default(uuid())
+  restaurantId String
+  name         String
+  description  String?
+  isSystem     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+  @@map("roles")
+}
+
+// -----------------------------------------------------------------------------
+// 4. Permission
+// -----------------------------------------------------------------------------
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  rolePermissions RolePermission[]
+
+  @@index([key])
+  @@map("permissions")
+}
+
+// -----------------------------------------------------------------------------
+// 5. UserRole (Join Table: User <-> Role)
+// -----------------------------------------------------------------------------
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// -----------------------------------------------------------------------------
+// 6. RolePermission (Join Table: Role <-> Permission)
+// -----------------------------------------------------------------------------
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  // Relationships
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// -----------------------------------------------------------------------------
+// 7. Session
+// -----------------------------------------------------------------------------
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, revokedAt, expiresAt])
+  @@map("sessions")
+}
+
+// -----------------------------------------------------------------------------
+// 8. AuditLog
+// -----------------------------------------------------------------------------
+model AuditLog {
+  id           String   @id @default(uuid())
+  restaurantId String
+  userId       String?
+  action       String
+  entityType   String
+  entityId     String?
+  metadata     Json?    @db.JsonB
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  // Relationships
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([userId])
+  @@index([restaurantId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@map("audit_logs")
+}
