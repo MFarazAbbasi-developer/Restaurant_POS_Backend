@@ -11,6 +11,7 @@ import { ordersRouter } from '../modules/orders/order.routes.js';
 import { paymentsRouter } from '../modules/payments/payment.routes.js';
 import { shiftsRouter } from '../modules/shifts/shift.routes.js';
 import { kitchenRouter } from '../modules/kitchen/kitchen.routes.js';
+import { receiptsRouter } from '../modules/receipts/receipt.routes.js';
 
 export const apiRouter = Router();
 
@@ -49,6 +50,9 @@ apiRouter.use('/shifts', shiftsRouter);
 
 // 11. Kitchen Display System (KDS) & Operations module
 apiRouter.use('/kitchen', kitchenRouter);
+
+// 12. Receipt & Printing Management module
+apiRouter.use('/receipts', receiptsRouter);
 
 /**
  * Future Business Modules:

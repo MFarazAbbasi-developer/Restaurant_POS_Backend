@@ -109,5 +109,11 @@ describe('Faraz POS - OpenAPI / Swagger Documentation Tests', () => {
     expect(paths).toContain('/api/v1/kitchen/orders/{orderId}/items/{itemId}/recall');
     expect(paths).toContain('/api/v1/kitchen/stations');
     expect(paths).toContain('/api/v1/kitchen/stations/{id}');
+
+    // Receipt & Printing Management
+    expect(paths).toContain('/api/v1/receipts/preview');
+    expect(paths).toContain('/api/v1/receipts/orders/{orderId}/customer');
+    expect(paths).toContain('/api/v1/receipts/orders/{orderId}/kitchen');
+    expect(paths).toContain('/api/v1/receipts/orders/{orderId}/reprint');
   });
 });

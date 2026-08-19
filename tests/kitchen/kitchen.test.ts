@@ -23,9 +23,15 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
   let tableAId: string;
 
   beforeAll(async () => {
-    // 1. Fetch Demo Restaurant A
-    const restaurantA = await prisma.restaurant.findUniqueOrThrow({
-      where: { slug: 'faraz-flagship' },
+    // 1. Create Suite-Isolated Restaurant A
+    const restaurantA = await prisma.restaurant.upsert({
+      where: { slug: 'faraz-kitchen-suite' },
+      update: {},
+      create: {
+        name: 'Faraz Kitchen Flagship',
+        slug: 'faraz-kitchen-suite',
+        currency: 'USD',
+      },
     });
     restaurantAId = restaurantA.id;
 
@@ -44,101 +50,116 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
     const defaultPinHash = await bcrypt.hash('1234', 10);
     const cashierPinHash = await bcrypt.hash('4321', 10);
 
+    const allPerms = await prisma.permission.findMany();
+    const permMap = new Map(allPerms.map((p) => [p.key, p.id]));
+
+    // Create OWNER Role
+    const ownerRole = await prisma.role.create({
+      data: {
+        restaurantId: restaurantAId,
+        name: 'OWNER_' + Date.now(),
+        rolePermissions: {
+          create: allPerms.map((p) => ({ permissionId: p.id })),
+        },
+      },
+    });
+
+    // Create KITCHEN Role
+    const kitchenRole = await prisma.role.create({
+      data: {
+        restaurantId: restaurantAId,
+        name: 'KITCHEN_' + Date.now(),
+        rolePermissions: {
+          create: ['orders.view', 'orders.update', 'kitchen.view', 'kitchen.update']
+            .filter((k) => permMap.has(k))
+            .map((k) => ({ permissionId: permMap.get(k)! })),
+        },
+      },
+    });
+
+    // Create CASHIER Role
+    const cashierRole = await prisma.role.create({
+      data: {
+        restaurantId: restaurantAId,
+        name: 'CASHIER_' + Date.now(),
+        rolePermissions: {
+          create: ['orders.view', 'orders.create', 'orders.update', 'kitchen.view']
+            .filter((k) => permMap.has(k))
+            .map((k) => ({ permissionId: permMap.get(k)! })),
+        },
+      },
+    });
+
     // 3. Login Owner A
-    await prisma.user.updateMany({
-      where: { restaurantId: restaurantAId, username: 'owner_admin' },
-      data: { pinHash: defaultPinHash, isActive: true },
+    const ownerUser = await prisma.user.create({
+      data: {
+        restaurantId: restaurantAId,
+        name: 'Owner Kitchen',
+        username: 'kds_owner_' + Date.now(),
+        pinHash: defaultPinHash,
+        isActive: true,
+        userRoles: { create: [{ roleId: ownerRole.id }] },
+      },
     });
 
     const ownerLogin = await request(app).post('/api/v1/auth/login').send({
-      username: 'owner_admin',
+      username: ownerUser.username,
       pin: '1234',
     });
     ownerAToken = ownerLogin.body.data.accessToken;
 
-    // 4. Create KITCHEN role & staff user for Restaurant A
-    const kitchenRole = await prisma.role.findFirst({
-      where: { restaurantId: restaurantAId, name: 'KITCHEN' },
-    });
-
-    const kitchenUser = await prisma.user.upsert({
-      where: {
-        restaurantId_username: {
-          restaurantId: restaurantAId,
-          username: 'chef_mario',
-        },
-      },
-      update: { isActive: true, pinHash: defaultPinHash },
-      create: {
+    // 4. Create KITCHEN staff user for Restaurant A
+    const kitchenUser = await prisma.user.create({
+      data: {
         restaurantId: restaurantAId,
         name: 'Chef Mario',
-        username: 'chef_mario',
+        username: 'kds_chef_' + Date.now(),
         pinHash: defaultPinHash,
         isActive: true,
+        userRoles: { create: [{ roleId: kitchenRole.id }] },
       },
     });
 
-    if (kitchenRole) {
-      await prisma.userRole.upsert({
-        where: {
-          userId_roleId: {
-            userId: kitchenUser.id,
-            roleId: kitchenRole.id,
-          },
-        },
-        update: {},
-        create: {
-          userId: kitchenUser.id,
-          roleId: kitchenRole.id,
-        },
-      });
-    }
-
     const kitchenLogin = await request(app).post('/api/v1/auth/login').send({
-      username: 'chef_mario',
+      username: kitchenUser.username,
       pin: '1234',
     });
     kitchenStaffAToken = kitchenLogin.body.data.accessToken;
 
     // 5. Cashier A Login
-    await prisma.user.updateMany({
-      where: { restaurantId: restaurantAId, username: 'cashier_sarah' },
-      data: { pinHash: cashierPinHash, isActive: true },
+    const cashierUser = await prisma.user.create({
+      data: {
+        restaurantId: restaurantAId,
+        name: 'Sarah Cashier',
+        username: 'kds_cashier_' + Date.now(),
+        pinHash: cashierPinHash,
+        isActive: true,
+        userRoles: { create: [{ roleId: cashierRole.id }] },
+      },
     });
 
     const cashierLogin = await request(app).post('/api/v1/auth/login').send({
-      username: 'cashier_sarah',
+      username: cashierUser.username,
       pin: '4321',
     });
     cashierAToken = cashierLogin.body.data.accessToken;
 
     // 6. Tenant B User setup with kitchen.view permission in Restaurant B
-    const kitchenPerm = await prisma.permission.findUnique({
-      where: { key: 'kitchen.view' },
-    });
-
     const roleB = await prisma.role.create({
       data: {
         restaurantId: restaurantBId,
         name: 'KITCHEN_B_' + Date.now(),
         rolePermissions: {
-          create: [{ permissionId: kitchenPerm!.id }],
+          create: [{ permissionId: permMap.get('kitchen.view')! }],
         },
       },
     });
 
-    await prisma.user.upsert({
-      where: {
-        restaurantId_username: {
-          restaurantId: restaurantBId,
-          username: 'tenant_b_chef',
-        },
-      },
-      update: { isActive: true, pinHash: defaultPinHash },
-      create: {
+    const userB = await prisma.user.create({
+      data: {
         restaurantId: restaurantBId,
         name: 'Tenant B Chef',
-        username: 'tenant_b_chef',
+        username: 'kds_tenant_b_' + Date.now(),
         pinHash: defaultPinHash,
         isActive: true,
         userRoles: {
@@ -148,7 +169,7 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
     });
 
     const userBLogin = await request(app).post('/api/v1/auth/login').send({
-      username: 'tenant_b_chef',
+      username: userB.username,
       pin: '1234',
     });
     tenantBToken = userBLogin.body.data.accessToken;
@@ -205,11 +226,24 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
     });
     itemSodaId = itemSoda.id;
 
-    // Fetch dining table
-    const table = await prisma.restaurantTable.findFirst({
-      where: { restaurantId: restaurantAId, isActive: true },
+    // Seating Zone & Table
+    const zone = await prisma.zone.create({
+      data: {
+        restaurantId: restaurantAId,
+        name: 'Main Hall ' + Date.now(),
+        sortOrder: 1,
+      },
     });
-    tableAId = table!.id;
+
+    const table = await prisma.restaurantTable.create({
+      data: {
+        restaurantId: restaurantAId,
+        zoneId: zone.id,
+        name: 'T-01',
+        capacity: 4,
+      },
+    });
+    tableAId = table.id;
   });
 
   // ---------------------------------------------------------------------------
@@ -370,12 +404,8 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
         .set('Authorization', `Bearer ${kitchenStaffAToken}`);
 
       expect(res.status).toBe(200);
-      expect(
-        res.body.data.tickets.every((t: { orderType: string }) => t.orderType === 'TAKEAWAY'),
-      ).toBe(true);
-      expect(res.body.data.tickets.some((t: { id: string }) => t.id === takeawayOrderId)).toBe(
-        true,
-      );
+      expect(res.body.data.tickets.every((t: { orderType: string }) => t.orderType === 'TAKEAWAY')).toBe(true);
+      expect(res.body.data.tickets.some((t: { id: string }) => t.id === takeawayOrderId)).toBe(true);
     });
 
     it('should filter kitchen queue by categoryId', async () => {
@@ -519,11 +549,7 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
 
       expect(res.status).toBe(200);
       expect(res.body.data.ticket.status).toBe('READY');
-      expect(
-        res.body.data.ticket.items.every(
-          (i: { kitchenStatus: string }) => i.kitchenStatus === 'READY',
-        ),
-      ).toBe(true);
+      expect(res.body.data.ticket.items.every((i: { kitchenStatus: string }) => i.kitchenStatus === 'READY')).toBe(true);
     });
 
     it('should recall a single item and revert order back to PREPARING', async () => {

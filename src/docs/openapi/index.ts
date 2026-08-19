@@ -13,6 +13,7 @@ import { ordersPaths } from './paths/orders.docs.js';
 import { paymentsPaths } from './paths/payments.docs.js';
 import { shiftsPaths } from './paths/shifts.docs.js';
 import { kitchenPaths } from './paths/kitchen.docs.js';
+import { receiptsPaths } from './paths/receipts.docs.js';
 
 export const openApiSpecification = {
   openapi: '3.0.3',
@@ -128,6 +129,11 @@ Welcome to the Faraz POS REST API documentation.
       name: 'Kitchen Operations & KDS - Stations',
       description: 'Kitchen preparation stations and category routing configurations',
     },
+    {
+      name: 'Receipt & Printing Management',
+      description:
+        'Customer receipts, KOT kitchen tickets, formatted thermal ASCII slips, and reprints',
+    },
   ],
   paths: {
     ...healthPaths,
@@ -142,6 +148,7 @@ Welcome to the Faraz POS REST API documentation.
     ...paymentsPaths,
     ...shiftsPaths,
     ...kitchenPaths,
+    ...receiptsPaths,
   },
   components: {
     securitySchemes,
