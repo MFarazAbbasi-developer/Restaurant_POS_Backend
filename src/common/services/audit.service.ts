@@ -27,6 +27,18 @@ function sanitizeMetadata(obj: unknown): unknown {
     return obj;
   }
 
+  if (Prisma.Decimal.isDecimal(obj)) {
+    return (obj as Prisma.Decimal).toNumber();
+  }
+
+  if (typeof obj === 'function') {
+    return undefined;
+  }
+
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+
   if (Array.isArray(obj)) {
     return obj.map(sanitizeMetadata);
   }
@@ -34,11 +46,12 @@ function sanitizeMetadata(obj: unknown): unknown {
   if (typeof obj === 'object') {
     const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      if (key === 'constructor') continue;
       if (SENSITIVE_KEYS.has(key.toLowerCase())) {
         sanitized[key] = '[REDACTED]';
       } else if (typeof value === 'object' && value !== null) {
         sanitized[key] = sanitizeMetadata(value);
-      } else {
+      } else if (typeof value !== 'function') {
         sanitized[key] = value;
       }
     }

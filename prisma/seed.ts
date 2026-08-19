@@ -39,13 +39,17 @@ const DEFAULT_PERMISSIONS = [
   { key: 'menu.manage', description: 'Create, edit, and organize menu items and categories' },
   { key: 'menu.price_update', description: 'Update menu item pricing' },
 
-  // Inventory
+  // Inventory & Purchasing
   { key: 'inventory.view', description: 'View stock levels and inventory items' },
-  { key: 'inventory.manage', description: 'Manage inventory items and suppliers' },
+  { key: 'inventory.manage', description: 'Manage inventory items and locations' },
   { key: 'inventory.adjust', description: 'Adjust stock counts and physical inventory' },
   { key: 'inventory.receive', description: 'Receive supplier purchases and stock deliveries' },
   { key: 'inventory.transfer', description: 'Transfer stock between locations' },
   { key: 'inventory.waste', description: 'Record spoiled, expired, or wasted inventory' },
+  { key: 'purchasing.view', description: 'View purchase orders, supplier profiles, receiving history, and purchase reports' },
+  { key: 'purchasing.manage', description: 'Create and modify purchase orders and supplier catalog terms' },
+  { key: 'purchasing.receive', description: 'Receive goods, log deliveries, and process supplier returns' },
+  { key: 'suppliers.manage', description: 'Create, edit, and deactivate supplier profiles' },
 
   // Reports
   { key: 'reports.view', description: 'View sales and business reports' },
@@ -142,6 +146,10 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'inventory.receive',
       'inventory.transfer',
       'inventory.waste',
+      'purchasing.view',
+      'purchasing.manage',
+      'purchasing.receive',
+      'suppliers.manage',
       'promotions.view',
       'promotions.manage',
       'promotions.apply',

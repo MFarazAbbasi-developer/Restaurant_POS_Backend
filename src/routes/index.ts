@@ -17,6 +17,7 @@ import { inventoryRouter } from '../modules/inventory/inventory.routes.js';
 import { promotionRouter } from '../modules/promotions/promotion.routes.js';
 import { loyaltyRouter } from '../modules/loyalty/loyalty.routes.js';
 import { reservationsRouter } from '../modules/reservations/reservations.routes.js';
+import { purchasingRouter } from '../modules/purchasing/purchasing.routes.js';
 
 export const apiRouter = Router();
 
@@ -73,6 +74,9 @@ apiRouter.use('/loyalty', loyaltyRouter);
 
 // 17. Reservations & Table Bookings module
 apiRouter.use('/reservations', reservationsRouter);
+
+// 18. Purchasing & Supplier Management module
+apiRouter.use('/purchasing', purchasingRouter);
 
 /**
  * Future Business Modules:

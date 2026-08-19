@@ -177,5 +177,17 @@ describe('Faraz POS - OpenAPI / Swagger Documentation Tests', () => {
     expect(paths).toContain('/api/v1/reservations/{id}');
     expect(paths).toContain('/api/v1/reservations/{id}/assign-table');
     expect(paths).toContain('/api/v1/reservations/{id}/status');
+
+    // Purchasing & Supplier Management
+    expect(paths).toContain('/api/v1/purchasing/suppliers');
+    expect(paths).toContain('/api/v1/purchasing/suppliers/{id}');
+    expect(paths).toContain('/api/v1/purchasing/suppliers/{id}/history');
+    expect(paths).toContain('/api/v1/purchasing/orders');
+    expect(paths).toContain('/api/v1/purchasing/orders/{id}');
+    expect(paths).toContain('/api/v1/purchasing/orders/{id}/order');
+    expect(paths).toContain('/api/v1/purchasing/orders/{id}/receive');
+    expect(paths).toContain('/api/v1/purchasing/orders/{id}/returns');
+    expect(paths).toContain('/api/v1/purchasing/orders/{id}/cancel');
+    expect(paths).toContain('/api/v1/purchasing/summary');
   });
 });
