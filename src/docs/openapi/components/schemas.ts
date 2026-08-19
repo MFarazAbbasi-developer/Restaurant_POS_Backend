@@ -1,0 +1,370 @@
+export const componentSchemas = {
+  // Generic Response Wrappers
+  ApiSuccessResponse: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean', example: true },
+      message: { type: 'string', example: 'Operation completed successfully' },
+      data: { type: 'object' },
+      meta: { type: 'object' },
+    },
+    required: ['success'],
+  },
+  ApiErrorResponse: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean', example: false },
+      error: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', example: 'VALIDATION_ERROR' },
+          message: { type: 'string', example: 'Validation failed' },
+          details: { type: 'array', items: { type: 'object' } },
+        },
+        required: ['code', 'message'],
+      },
+    },
+    required: ['success', 'error'],
+  },
+  PaginationMeta: {
+    type: 'object',
+    properties: {
+      total: { type: 'integer', example: 100 },
+      page: { type: 'integer', example: 1 },
+      limit: { type: 'integer', example: 20 },
+      totalPages: { type: 'integer', example: 5 },
+      hasNextPage: { type: 'boolean', example: true },
+      hasPrevPage: { type: 'boolean', example: false },
+    },
+  },
+
+  // Auth Schemas
+  LoginRequest: {
+    type: 'object',
+    required: ['username', 'pin'],
+    properties: {
+      username: { type: 'string', example: 'admin' },
+      pin: { type: 'string', example: '1234', minLength: 4, maxLength: 6 },
+    },
+  },
+  RefreshTokenRequest: {
+    type: 'object',
+    required: ['refreshToken'],
+    properties: {
+      refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1Ni...' },
+    },
+  },
+  AuthUser: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      username: { type: 'string', example: 'admin' },
+      name: { type: 'string', example: 'Faraz Abbasi' },
+      isActive: { type: 'boolean', example: true },
+      roles: { type: 'array', items: { type: 'string' }, example: ['OWNER'] },
+      permissions: {
+        type: 'array',
+        items: { type: 'string' },
+        example: ['orders.create', 'orders.view', 'payments.create', 'settings.manage'],
+      },
+    },
+  },
+
+  // Restaurant Schemas
+  RestaurantConfig: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Faraz Restaurant' },
+      legalName: { type: 'string', example: 'Faraz Foods LLC' },
+      slug: { type: 'string', example: 'faraz-flagship' },
+      address: { type: 'string', example: '123 Food Street, Lahore' },
+      phone: { type: 'string', example: '+92 300 1234567' },
+      email: { type: 'string', format: 'email', example: 'info@farazpos.com' },
+      currency: { type: 'string', example: 'PKR' },
+      taxRate: { type: 'number', example: 16.0 },
+      taxInclusive: { type: 'boolean', example: false },
+      serviceChargeRate: { type: 'number', example: 5.0 },
+      dineInEnabled: { type: 'boolean', example: true },
+      takeawayEnabled: { type: 'boolean', example: true },
+      deliveryEnabled: { type: 'boolean', example: true },
+      receiptHeader: { type: 'string', example: 'Welcome to Faraz Restaurant' },
+      receiptFooter: { type: 'string', example: 'Thank you for dining with us!' },
+    },
+  },
+  UpdateRestaurantConfigInput: {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      legalName: { type: 'string' },
+      address: { type: 'string' },
+      phone: { type: 'string' },
+      email: { type: 'string', format: 'email' },
+      currency: { type: 'string' },
+      taxRate: { type: 'number' },
+      taxInclusive: { type: 'boolean' },
+      serviceChargeRate: { type: 'number' },
+      dineInEnabled: { type: 'boolean' },
+      takeawayEnabled: { type: 'boolean' },
+      deliveryEnabled: { type: 'boolean' },
+      receiptHeader: { type: 'string' },
+      receiptFooter: { type: 'string' },
+    },
+  },
+
+  // Staff Schemas
+  StaffMember: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Ali Khan' },
+      username: { type: 'string', example: 'alikhan' },
+      phone: { type: 'string', example: '+92 301 9876543' },
+      isActive: { type: 'boolean', example: true },
+      roles: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            name: { type: 'string', example: 'CASHIER' },
+          },
+        },
+      },
+      createdAt: { type: 'string', format: 'date-time' },
+    },
+  },
+  CreateStaffInput: {
+    type: 'object',
+    required: ['name', 'username', 'pin', 'roleIds'],
+    properties: {
+      name: { type: 'string', example: 'Ali Khan' },
+      username: { type: 'string', example: 'alikhan' },
+      pin: { type: 'string', example: '1234', minLength: 4, maxLength: 6 },
+      phone: { type: 'string', example: '+92 301 9876543' },
+      roleIds: { type: 'array', items: { type: 'string', format: 'uuid' } },
+    },
+  },
+
+  // Menu Schemas
+  Category: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Main Courses' },
+      description: { type: 'string' },
+      sortOrder: { type: 'integer', example: 1 },
+      isActive: { type: 'boolean', example: true },
+    },
+  },
+  MenuItem: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      categoryId: { type: 'string', format: 'uuid' },
+      itemCode: { type: 'string', example: 'PIZZA-PEP' },
+      name: { type: 'string', example: 'Pepperoni Pizza' },
+      urduName: { type: 'string', example: 'پیپرونی پیزا' },
+      description: { type: 'string' },
+      basePrice: { type: 'number', example: 25.0 },
+      taxRate: { type: 'number', nullable: true },
+      sortOrder: { type: 'integer', example: 1 },
+      isActive: { type: 'boolean', example: true },
+      isAvailable: { type: 'boolean', example: true },
+      variants: { type: 'array', items: { $ref: '#/components/schemas/MenuItemVariant' } },
+      modifierGroups: { type: 'array', items: { $ref: '#/components/schemas/ModifierGroup' } },
+    },
+  },
+  MenuItemVariant: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      menuItemId: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Large 16-inch' },
+      price: { type: 'number', example: 32.0 },
+      sku: { type: 'string', example: 'PIZZA-PEP-LG' },
+      isActive: { type: 'boolean', example: true },
+    },
+  },
+  ModifierGroup: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      menuItemId: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Extra Toppings' },
+      minSelections: { type: 'integer', example: 0 },
+      maxSelections: { type: 'integer', example: 3 },
+      isRequired: { type: 'boolean', example: false },
+      options: { type: 'array', items: { $ref: '#/components/schemas/ModifierOption' } },
+    },
+  },
+  ModifierOption: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      modifierGroupId: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Extra Cheese' },
+      priceAdjustment: { type: 'number', example: 3.5 },
+      isAvailable: { type: 'boolean', example: true },
+    },
+  },
+
+  // Tables Schemas
+  SeatingZone: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      name: { type: 'string', example: 'Ground Floor Dining' },
+      code: { type: 'string', example: 'GF' },
+      sortOrder: { type: 'integer', example: 1 },
+      isActive: { type: 'boolean', example: true },
+      tables: { type: 'array', items: { $ref: '#/components/schemas/DiningTable' } },
+    },
+  },
+  DiningTable: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      zoneId: { type: 'string', format: 'uuid' },
+      tableNumber: { type: 'string', example: 'T-01' },
+      capacity: { type: 'integer', example: 4 },
+      status: {
+        type: 'string',
+        enum: ['AVAILABLE', 'OCCUPIED', 'BILL_PRINTED', 'RESERVED', 'CLEANING'],
+        example: 'AVAILABLE',
+      },
+      sortOrder: { type: 'integer', example: 1 },
+      isActive: { type: 'boolean', example: true },
+    },
+  },
+
+  // Orders Schemas
+  Order: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      orderCode: { type: 'string', example: 'ORD-20260819-001' },
+      dailySequence: { type: 'integer', example: 1 },
+      orderType: { type: 'string', enum: ['DINE_IN', 'TAKEAWAY', 'DELIVERY'], example: 'DINE_IN' },
+      status: {
+        type: 'string',
+        enum: [
+          'DRAFT',
+          'CONFIRMED',
+          'PREPARING',
+          'READY',
+          'SERVED',
+          'COMPLETED',
+          'CANCELLED',
+          'VOIDED',
+        ],
+        example: 'CONFIRMED',
+      },
+      paymentStatus: {
+        type: 'string',
+        enum: ['UNPAID', 'PARTIALLY_PAID', 'PAID', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+        example: 'UNPAID',
+      },
+      paymentMethod: { type: 'string', nullable: true },
+      subtotal: { type: 'number', example: 50.0 },
+      itemDiscountTotal: { type: 'number', example: 0.0 },
+      orderDiscountTotal: { type: 'number', example: 5.0 },
+      totalDiscount: { type: 'number', example: 5.0 },
+      taxAmount: { type: 'number', example: 7.2 },
+      serviceChargeAmount: { type: 'number', example: 2.25 },
+      deliveryCharge: { type: 'number', example: 0.0 },
+      packagingCharge: { type: 'number', example: 0.0 },
+      grandTotal: { type: 'number', example: 54.45 },
+      paidAmount: { type: 'number', example: 0.0 },
+      changeAmount: { type: 'number', example: 0.0 },
+      notes: { type: 'string', nullable: true },
+      items: { type: 'array', items: { $ref: '#/components/schemas/OrderItem' } },
+      createdAt: { type: 'string', format: 'date-time' },
+    },
+  },
+  OrderItem: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      orderId: { type: 'string', format: 'uuid' },
+      menuItemId: { type: 'string', format: 'uuid' },
+      itemName: { type: 'string', example: 'Gourmet Pepperoni Pizza' },
+      quantity: { type: 'integer', example: 2 },
+      unitPrice: { type: 'number', example: 25.0 },
+      subtotal: { type: 'number', example: 50.0 },
+      grossTotal: { type: 'number', example: 50.0 },
+      discountAmount: { type: 'number', example: 0.0 },
+      netTotal: { type: 'number', example: 50.0 },
+      status: { type: 'string', enum: ['ACTIVE', 'VOIDED'], example: 'ACTIVE' },
+      modifiers: { type: 'array', items: { $ref: '#/components/schemas/OrderItemModifier' } },
+    },
+  },
+  OrderItemModifier: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      modifierOptionName: { type: 'string', example: 'Extra Cheese' },
+      unitPrice: { type: 'number', example: 3.5 },
+      quantity: { type: 'integer', example: 1 },
+      totalPrice: { type: 'number', example: 3.5 },
+    },
+  },
+
+  // Payments & Cash Schemas
+  Payment: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      orderId: { type: 'string', format: 'uuid' },
+      shiftId: { type: 'string', format: 'uuid', nullable: true },
+      paymentMethod: {
+        type: 'string',
+        enum: ['CASH', 'CARD', 'BANK_TRANSFER', 'DIGITAL_WALLET', 'OTHER'],
+        example: 'CASH',
+      },
+      amount: { type: 'number', example: 50.0 },
+      amountTendered: { type: 'number', example: 60.0, nullable: true },
+      changeAmount: { type: 'number', example: 10.0, nullable: true },
+      reference: { type: 'string', nullable: true },
+      cardLast4: { type: 'string', nullable: true },
+      cardBrand: { type: 'string', nullable: true },
+      status: {
+        type: 'string',
+        enum: ['COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED', 'VOIDED'],
+        example: 'COMPLETED',
+      },
+      refundedAmount: { type: 'number', example: 0.0 },
+      createdAt: { type: 'string', format: 'date-time' },
+    },
+  },
+  CashierShift: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      restaurantId: { type: 'string', format: 'uuid' },
+      cashierId: { type: 'string', format: 'uuid' },
+      registerName: { type: 'string', example: 'Main Register' },
+      businessDate: { type: 'string', example: '2026-08-19' },
+      status: { type: 'string', enum: ['OPEN', 'CLOSED'], example: 'OPEN' },
+      openingCash: { type: 'number', example: 100.0 },
+      cashSales: { type: 'number', example: 250.0 },
+      cashRefunds: { type: 'number', example: 20.0 },
+      cashDrops: { type: 'number', example: 100.0 },
+      cashAdjustments: { type: 'number', example: 10.0 },
+      currentDrawerCash: { type: 'number', example: 240.0 },
+      expectedClosingCash: { type: 'number', nullable: true },
+      actualClosingCash: { type: 'number', nullable: true },
+      variance: { type: 'number', nullable: true },
+      openedAt: { type: 'string', format: 'date-time' },
+      closedAt: { type: 'string', format: 'date-time', nullable: true },
+    },
+  },
+};

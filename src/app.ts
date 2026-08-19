@@ -1,18 +1,31 @@
 import express, { type Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env.js';
 import { requestLogger } from './common/middlewares/request-logger.middleware.js';
 import { notFoundHandler } from './common/middlewares/not-found.middleware.js';
 import { errorHandler } from './common/middlewares/error.middleware.js';
 import { apiRouter } from './routes/index.js';
 import { healthController } from './modules/health/health.controller.js';
+import { openApiSpecification } from './docs/openapi/index.js';
 
 export const createApp = (): Application => {
   const app = express();
 
-  // 1. Security Headers
-  app.use(helmet());
+  // 1. Security Headers with Swagger UI compatibility
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
+      },
+    }),
+  );
 
   // 2. CORS Configuration
   const allowedOrigins =
@@ -37,7 +50,27 @@ export const createApp = (): Application => {
   // 5. Root probe endpoint for container / load-balancer health checks
   app.get('/health', healthController.getHealth);
 
-  // 6. API v1 Routes
+  // 6. OpenAPI Documentation UI & JSON spec
+  app.get('/api/docs/json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(openApiSpecification);
+  });
+
+  app.use(
+    '/api/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openApiSpecification, {
+      customSiteTitle: 'Faraz POS - API Documentation',
+      swaggerOptions: {
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        docExpansion: 'none',
+        filter: true,
+      },
+    }),
+  );
+
+  // 7. API v1 Routes
   app.use(env.API_PREFIX, apiRouter);
 
   // 7. 404 Not Found Handler
