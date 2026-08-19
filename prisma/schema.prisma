@@ -73,6 +73,10 @@ model Restaurant {
   stockTransfers         StockTransfer[]
   promotions             Promotion[]
   promotionUsages        PromotionUsage[]
+  loyaltyProgram         LoyaltyProgram?
+  loyaltyTiers           LoyaltyTier[]
+  loyaltyAccounts        LoyaltyAccount[]
+  loyaltyTransactions    LoyaltyTransaction[]
 
   @@index([slug])
   @@index([isActive])
@@ -119,6 +123,7 @@ model User {
   createdStockAdjustments    StockAdjustment[] @relation("CreatedStockAdjustments")
   createdStockWastages       StockWastage[]    @relation("CreatedStockWastages")
   createdStockTransfers      StockTransfer[]   @relation("CreatedStockTransfers")
+  createdLoyaltyTransactions LoyaltyTransaction[] @relation("CreatedLoyaltyTransactions")
 
   @@unique([restaurantId, username])
   @@index([restaurantId])
@@ -630,6 +635,8 @@ model Customer {
   orders          Order[]
   promotions      Promotion[]
   promotionUsages PromotionUsage[]
+  loyaltyAccount  LoyaltyAccount?
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@unique([restaurantId, phone])
   @@index([restaurantId])
@@ -886,6 +893,8 @@ model Order {
   orderDiscountReason String?
   promoCode           String?
   promotionDiscount   Decimal            @default(0) @db.Decimal(10, 2)
+  loyaltyPointsRedeemed Int              @default(0)
+  loyaltyDiscount     Decimal            @default(0) @db.Decimal(10, 2)
   totalDiscount       Decimal            @default(0) @db.Decimal(10, 2)
   taxRate             Decimal?           @db.Decimal(5, 2)
   taxInclusive        Boolean            @default(false)
@@ -937,6 +946,7 @@ model Order {
   payments            Payment[]
   refunds             PaymentRefund[]
   promotionUsages     PromotionUsage[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@unique([restaurantId, orderCode])
   @@index([restaurantId])
@@ -1677,6 +1687,125 @@ model PromotionUsage {
   @@index([customerId])
   @@index([restaurantId, usedAt])
   @@map("promotion_usages")
+}
+
+// -----------------------------------------------------------------------------
+// 39. Loyalty & Customer Rewards
+// -----------------------------------------------------------------------------
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  MANUAL_ADJUSTMENT
+  REFUND_REVERSAL
+  EXPIRY
+}
+
+enum LoyaltyRoundingMode {
+  FLOOR
+  ROUND
+  CEIL
+}
+
+model LoyaltyProgram {
+  id                    String              @id @default(uuid())
+  restaurantId          String              @unique
+  isEnabled             Boolean             @default(true)
+  programName           String              @default("Faraz Rewards")
+  pointsPerCurrencyUnit Float               @default(1.0)
+  redemptionRate        Decimal             @default(0.01) @db.Decimal(10, 4)
+  minPointsToRedeem     Int                 @default(50)
+  maxPointsPerOrder     Int?
+  maxDiscountPercentage Float               @default(100.0)
+  pointsExpiryDays      Int?
+  roundingMode          LoyaltyRoundingMode @default(FLOOR)
+  minOrderSubtotal      Decimal             @default(0.00) @db.Decimal(10, 2)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  // Relationships
+  restaurant            Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@map("loyalty_programs")
+}
+
+model LoyaltyTier {
+  id                 String           @id @default(uuid())
+  restaurantId       String
+  name               String
+  minPoints          Int              @default(0)
+  multiplier         Float            @default(1.0)
+  discountPercentage Float            @default(0.0)
+  color              String?
+  sortOrder          Int              @default(0)
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  // Relationships
+  restaurant         Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  accounts           LoyaltyAccount[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+  @@index([restaurantId, isActive, sortOrder])
+  @@map("loyalty_tiers")
+}
+
+model LoyaltyAccount {
+  id                  String               @id @default(uuid())
+  restaurantId        String
+  customerId          String               @unique
+  tierId              String?
+  pointsBalance       Int                  @default(0)
+  lifetimePoints      Int                  @default(0)
+  totalRedeemedPoints Int                  @default(0)
+  isActive            Boolean              @default(true)
+  joinedAt            DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  // Relationships
+  restaurant          Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tier                LoyaltyTier?         @relation(fields: [tierId], references: [id], onDelete: SetNull)
+  transactions        LoyaltyTransaction[]
+
+  @@index([restaurantId])
+  @@index([customerId])
+  @@index([restaurantId, isActive])
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id                 String                 @id @default(uuid())
+  restaurantId       String
+  accountId          String
+  customerId         String
+  orderId            String?
+  paymentId          String?
+  type               LoyaltyTransactionType
+  points             Int
+  pointsBalanceAfter Int
+  monetaryValue      Decimal?               @db.Decimal(10, 2)
+  reason             String?
+  managerPinVerified Boolean                @default(false)
+  createdById        String?
+  createdAt          DateTime               @default(now())
+
+  // Relationships
+  restaurant         Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  account            LoyaltyAccount         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  customer           Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order              Order?                 @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdByUser      User?                  @relation("CreatedLoyaltyTransactions", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([accountId])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([restaurantId, type])
+  @@index([restaurantId, createdAt])
+  @@map("loyalty_transactions")
 }
 
 

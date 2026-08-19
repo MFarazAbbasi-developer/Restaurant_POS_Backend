@@ -7,6 +7,7 @@ import { ManagerAuthService } from '../auth/manager-auth.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
 import { PromotionEngine } from '../promotions/promotion-engine.service.js';
 import { PromotionService } from '../promotions/promotion.service.js';
+import { LoyaltyService } from '../loyalty/loyalty.service.js';
 import {
   CalculatedItemModifier,
   CalculatedOrderItem,
@@ -38,6 +39,7 @@ export interface CreateOrderInput {
   packagingCharge?: number;
   notes?: string;
   promoCode?: string;
+  pointsToRedeem?: number;
   paymentMethod?: string;
   isAggregator?: boolean;
   aggregatorName?: string;
@@ -90,6 +92,11 @@ export class OrderService {
         order.promotionDiscount instanceof Prisma.Decimal
           ? order.promotionDiscount.toNumber()
           : Number(order.promotionDiscount || 0),
+      loyaltyPointsRedeemed: order.loyaltyPointsRedeemed ?? 0,
+      loyaltyDiscount:
+        order.loyaltyDiscount instanceof Prisma.Decimal
+          ? order.loyaltyDiscount.toNumber()
+          : Number(order.loyaltyDiscount || 0),
       totalDiscount:
         order.totalDiscount instanceof Prisma.Decimal
           ? order.totalDiscount.toNumber()
@@ -393,11 +400,36 @@ export class OrderService {
       });
     }
 
+    // Loyalty Redemption Calculation (if requested)
+    let loyaltyDiscount = new Prisma.Decimal(0);
+    let loyaltyPointsToRedeem = 0;
+    if (input.pointsToRedeem && input.pointsToRedeem > 0) {
+      if (!input.customerId) {
+        throw new BadRequestError('Customer ID is required to redeem loyalty points');
+      }
+      const redemptionPreview = await LoyaltyService.previewRedemption(restaurantId, {
+        customerId: input.customerId,
+        subtotal: subtotalBeforePromos.toNumber(),
+        pointsToRedeem: input.pointsToRedeem,
+      });
+
+      if (!redemptionPreview.isEligible) {
+        throw new BadRequestError(
+          redemptionPreview.reason ?? 'Loyalty points cannot be redeemed for this order',
+        );
+      }
+
+      loyaltyDiscount = new Prisma.Decimal(redemptionPreview.discountAmount);
+      loyaltyPointsToRedeem = redemptionPreview.pointsToRedeem ?? input.pointsToRedeem;
+    }
+
     // Calculate order financial breakdown
     const orderCalculation = OrderCalculationService.calculateOrderTotals({
       items: calculatedItems,
       promoCode: promoResult.appliedPromoCode ?? input.promoCode ?? null,
       promotionDiscount: promoResult.totalPromotionDiscount,
+      loyaltyPointsRedeemed: loyaltyPointsToRedeem,
+      loyaltyDiscount,
       taxRate: restaurant.taxRate,
       taxInclusive: restaurant.taxInclusive,
       serviceChargeRate: restaurant.serviceChargeRate,
@@ -441,6 +473,8 @@ export class OrderService {
           orderDiscountReason: orderCalculation.orderDiscountReason,
           promoCode: orderCalculation.promoCode,
           promotionDiscount: orderCalculation.promotionDiscount,
+          loyaltyPointsRedeemed: orderCalculation.loyaltyPointsRedeemed,
+          loyaltyDiscount: orderCalculation.loyaltyDiscount,
           totalDiscount: orderCalculation.totalDiscount,
           taxRate: orderCalculation.taxRate,
           taxInclusive: orderCalculation.taxInclusive,
@@ -517,6 +551,24 @@ export class OrderService {
           promoResult.appliedPromotions,
           input.customerId,
         );
+      }
+
+      // Deduct loyalty points if redeemed
+      if (orderCalculation.loyaltyPointsRedeemed > 0 && input.customerId) {
+        await LoyaltyService.processOrderRedemption(
+          tx,
+          restaurantId,
+          newOrder.id,
+          input.customerId,
+          orderCalculation.loyaltyPointsRedeemed,
+          orderCalculation.loyaltyDiscount,
+          actor.id,
+        );
+      }
+
+      // If order is prepaid and fully paid, award loyalty points
+      if (newOrder.paymentStatus === 'PAID') {
+        await LoyaltyService.processOrderEarning(tx, restaurantId, newOrder, actor.id);
       }
 
       // 3. If dine-in and table was AVAILABLE, update table status to OCCUPIED
@@ -1203,6 +1255,11 @@ export class OrderService {
       status: newStatus,
     });
 
+    // 4. If status changed to COMPLETED, award loyalty points
+    if (newStatus === 'COMPLETED') {
+      await LoyaltyService.processOrderEarning(prisma, restaurantId, updatedOrder, actor.id);
+    }
+
     return this.serializeOrder(updatedOrder);
   }
 
@@ -1247,6 +1304,9 @@ export class OrderService {
           table: true,
         },
       });
+
+      // 2. Reverse any loyalty points
+      await LoyaltyService.reverseOrderPoints(tx, restaurantId, order.id, reason, actor.id);
 
       return res;
     });
@@ -1324,7 +1384,10 @@ export class OrderService {
         },
       });
 
-      // 2. Void order
+      // 2. Reverse any loyalty points
+      await LoyaltyService.reverseOrderPoints(tx, restaurantId, order.id, voidReason, actor?.id);
+
+      // 3. Void order
       return tx.order.update({
         where: { id: order.id },
         data: {

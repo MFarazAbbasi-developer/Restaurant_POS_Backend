@@ -9,6 +9,7 @@ import {
 import { AuditService } from '../../common/services/audit.service.js';
 import { RealtimeService } from '../../common/services/realtime.service.js';
 import { ManagerAuthService } from '../auth/manager-auth.service.js';
+import { LoyaltyService } from '../loyalty/loyalty.service.js';
 import { CreatePaymentInput, CreateRefundInput, ListPaymentsQuery } from './payment.schema.js';
 import { AuthenticatedUserContext } from '../../common/types/index.js';
 
@@ -237,6 +238,11 @@ export class PaymentService {
         },
       });
 
+      // Award loyalty points if fully paid
+      if (isFullyPaid) {
+        await LoyaltyService.processOrderEarning(tx, restaurantId, updatedOrder, actor.id);
+      }
+
       return { payment, updatedOrder };
     });
 
@@ -427,6 +433,21 @@ export class PaymentService {
           paymentStatus: newOrderPaymentStatus,
         },
       });
+
+      // 5. Reverse loyalty points if order is refunded
+      if (
+        isPaymentFullyRefunded ||
+        newOrderPaymentStatus === 'REFUNDED' ||
+        newOrderPaymentStatus === 'PARTIALLY_REFUNDED'
+      ) {
+        await LoyaltyService.reverseOrderPoints(
+          tx,
+          restaurantId,
+          order.id,
+          `Refund: ${input.reason.trim()}`,
+          actor.id,
+        );
+      }
 
       return { refund, updatedPayment, updatedOrder };
     });

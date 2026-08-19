@@ -15,6 +15,7 @@ import { receiptsRouter } from '../modules/receipts/receipt.routes.js';
 import { reportsRouter } from '../modules/reports/report.routes.js';
 import { inventoryRouter } from '../modules/inventory/inventory.routes.js';
 import { promotionRouter } from '../modules/promotions/promotion.routes.js';
+import { loyaltyRouter } from '../modules/loyalty/loyalty.routes.js';
 
 export const apiRouter = Router();
 
@@ -65,6 +66,9 @@ apiRouter.use('/inventory', inventoryRouter);
 
 // 15. Discounts & Promotions module
 apiRouter.use('/promotions', promotionRouter);
+
+// 16. Loyalty & Customer Rewards module
+apiRouter.use('/loyalty', loyaltyRouter);
 
 /**
  * Future Business Modules:

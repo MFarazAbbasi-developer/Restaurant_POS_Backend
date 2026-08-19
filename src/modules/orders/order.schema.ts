@@ -42,6 +42,7 @@ export const createOrderSchema = z
     packagingCharge: z.number().min(0).optional(),
     notes: z.string().trim().max(500).optional(),
     promoCode: z.string().trim().toUpperCase().optional(),
+    pointsToRedeem: z.number().int().min(1, 'Points to redeem must be at least 1').optional(),
     paymentMethod: z.string().trim().max(50).optional().default('CASH'),
     isAggregator: z.boolean().optional().default(false),
     aggregatorName: z.string().trim().max(100).optional(),

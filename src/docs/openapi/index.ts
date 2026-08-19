@@ -17,6 +17,7 @@ import { receiptsPaths } from './paths/receipts.docs.js';
 import { reportsPaths } from './paths/reports.docs.js';
 import { inventoryPaths } from './paths/inventory.docs.js';
 import { promotionsPaths } from './paths/promotions.docs.js';
+import { loyaltyPaths } from './paths/loyalty.docs.js';
 
 export const openApiSpecification = {
   openapi: '3.0.3',
@@ -117,6 +118,11 @@ Welcome to the Faraz POS REST API documentation.
       description:
         'Promotional discount campaigns, item/category rules, BXGY (BOGO), promo codes, scheduling, and pre-checkout preview',
     },
+    {
+      name: 'Loyalty & Customer Rewards',
+      description:
+        'Customer rewards club, points earning on paid orders, checkout redemption, tiers, manual adjustments, and audit ledger',
+    },
   ],
   paths: {
     ...healthPaths,
@@ -135,6 +141,7 @@ Welcome to the Faraz POS REST API documentation.
     ...reportsPaths,
     ...inventoryPaths,
     ...promotionsPaths,
+    ...loyaltyPaths,
   },
   components: {
     securitySchemes,

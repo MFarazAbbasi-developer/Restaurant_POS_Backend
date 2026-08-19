@@ -158,5 +158,17 @@ describe('Faraz POS - OpenAPI / Swagger Documentation Tests', () => {
     expect(paths).toContain('/api/v1/promotions/{id}/usages');
     expect(paths).toContain('/api/v1/promotions/preview');
     expect(paths).toContain('/api/v1/promotions/validate-code');
+
+    // Loyalty & Customer Rewards
+    expect(paths).toContain('/api/v1/loyalty/program');
+    expect(paths).toContain('/api/v1/loyalty/summary');
+    expect(paths).toContain('/api/v1/loyalty/tiers');
+    expect(paths).toContain('/api/v1/loyalty/tiers/{id}');
+    expect(paths).toContain('/api/v1/loyalty/accounts');
+    expect(paths).toContain('/api/v1/loyalty/customers/{customerId}');
+    expect(paths).toContain('/api/v1/loyalty/enroll');
+    expect(paths).toContain('/api/v1/loyalty/preview-redemption');
+    expect(paths).toContain('/api/v1/loyalty/adjust');
+    expect(paths).toContain('/api/v1/loyalty/transactions');
   });
 });

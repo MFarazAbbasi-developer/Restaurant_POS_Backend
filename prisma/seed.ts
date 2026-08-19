@@ -83,6 +83,12 @@ const DEFAULT_PERMISSIONS = [
   { key: 'promotions.manage', description: 'Create, update, and manage promotional campaigns and discount rules' },
   { key: 'promotions.apply', description: 'Apply promotional discount codes and promo overrides to orders' },
 
+  // Loyalty & Customer Rewards
+  { key: 'loyalty.view', description: 'View loyalty accounts, balances, history, tier rules, and reports' },
+  { key: 'loyalty.manage', description: 'Configure loyalty program parameters and tier levels' },
+  { key: 'loyalty.adjust', description: 'Perform manual manager-authorized points adjustments' },
+  { key: 'loyalty.redeem', description: 'Redeem loyalty points during checkout' },
+
   // Settings
   { key: 'settings.view', description: 'View restaurant configurations and settings' },
   { key: 'settings.manage', description: 'Modify restaurant configurations and POS settings' },
@@ -134,6 +140,10 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'promotions.view',
       'promotions.manage',
       'promotions.apply',
+      'loyalty.view',
+      'loyalty.manage',
+      'loyalty.adjust',
+      'loyalty.redeem',
       'reports.view',
       'reports.export',
       'tables.view',
@@ -173,6 +183,8 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'inventory.view',
       'promotions.view',
       'promotions.apply',
+      'loyalty.view',
+      'loyalty.redeem',
       'tables.view',
       'tables.manage',
       'delivery.view',
