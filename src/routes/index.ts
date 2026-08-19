@@ -5,6 +5,7 @@ import { restaurantRouter } from '../modules/restaurant/restaurant.routes.js';
 import { staffRouter } from '../modules/staff/staff.routes.js';
 import { menuRouter } from '../modules/menu/menu.routes.js';
 import { zonesRouter, tablesRouter } from '../modules/tables/tables.routes.js';
+import { takeawayRouter } from '../modules/takeaway/takeaway.routes.js';
 
 export const apiRouter = Router();
 
@@ -26,6 +27,9 @@ apiRouter.use('/menu', menuRouter);
 // 6. Table & Floor Management module
 apiRouter.use('/zones', zonesRouter);
 apiRouter.use('/tables', tablesRouter);
+
+// 7. Takeaway Management module
+apiRouter.use('/takeaway', takeawayRouter);
 
 /**
  * Future Business Modules:

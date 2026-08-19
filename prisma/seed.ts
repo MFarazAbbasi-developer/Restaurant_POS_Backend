@@ -21,6 +21,7 @@ const DEFAULT_PERMISSIONS = [
   { key: 'orders.cancel', description: 'Cancel active orders' },
   { key: 'orders.discount', description: 'Apply discounts to orders' },
   { key: 'orders.void', description: 'Void order items or entire orders' },
+  { key: 'orders.pay_on_pickup', description: 'Authorize takeaway orders with Pay on Pickup status' },
 
   // Payments
   { key: 'payments.view', description: 'View payment transactions and receipts' },
@@ -80,6 +81,7 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'orders.cancel',
       'orders.discount',
       'orders.void',
+      'orders.pay_on_pickup',
       'payments.view',
       'payments.create',
       'payments.refund',

@@ -42,12 +42,14 @@ model Restaurant {
   users          User[]
   roles          Role[]
   auditLogs      AuditLog[]
-  categories     Category[]
-  menuItems      MenuItem[]
-  modifierGroups ModifierGroup[]
-  zones          Zone[]
-  tables         RestaurantTable[]
-  tableOrders    TableOrder[]
+  categories             Category[]
+  menuItems              MenuItem[]
+  modifierGroups         ModifierGroup[]
+  zones                  Zone[]
+  tables                 RestaurantTable[]
+  tableOrders            TableOrder[]
+  takeawayOrders         TakeawayOrder[]
+  takeawayDailySequences TakeawayDailySequence[]
 
   @@index([slug])
   @@index([isActive])
@@ -75,7 +77,8 @@ model User {
   userRoles         UserRole[]
   sessions          Session[]
   auditLogs         AuditLog[]
-  openedTableOrders TableOrder[]
+  openedTableOrders      TableOrder[]
+  createdTakeawayOrders  TakeawayOrder[]
 
   @@unique([restaurantId, username])
   @@index([restaurantId])
@@ -250,8 +253,9 @@ model MenuItem {
   // Relationships
   restaurant     Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category       Category                @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  variants       MenuItemVariant[]
-  modifierGroups MenuItemModifierGroup[]
+  variants               MenuItemVariant[]
+  modifierGroups         MenuItemModifierGroup[]
+  takeawayOrderItems     TakeawayOrderItem[]
 
   @@unique([restaurantId, itemCode])
   @@index([restaurantId])
@@ -274,7 +278,8 @@ model MenuItemVariant {
   updatedAt  DateTime @updatedAt
 
   // Relationships
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuItem           MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  takeawayOrderItems TakeawayOrderItem[]
 
   @@index([menuItemId])
   @@index([menuItemId, isActive, sortOrder])
@@ -455,4 +460,99 @@ model TableOrder {
   @@index([tableId])
   @@index([restaurantId, tableId, status])
   @@map("table_orders")
+}
+
+// -----------------------------------------------------------------------------
+// 18. Takeaway Management Models
+// -----------------------------------------------------------------------------
+enum TakeawayOrderStatus {
+  PENDING
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum TakeawayPaymentStatus {
+  PAID
+  PENDING
+}
+
+model TakeawayOrder {
+  id                  String                @id @default(uuid())
+  restaurantId        String
+  tokenNumber         Int
+  orderCode           String
+  businessDate        String
+  customerName        String
+  customerPhone       String?
+  status              TakeawayOrderStatus   @default(PENDING)
+  paymentStatus       TakeawayPaymentStatus @default(PAID)
+  paymentMethod       String                @default("CASH")
+  subtotal            Decimal               @db.Decimal(10, 2)
+  taxRate             Decimal?              @db.Decimal(5, 2)
+  taxAmount           Decimal               @default(0) @db.Decimal(10, 2)
+  discountAmount      Decimal               @default(0) @db.Decimal(10, 2)
+  totalAmount         Decimal               @db.Decimal(10, 2)
+  isPayOnPickup       Boolean               @default(false)
+  specialInstructions String?
+  cancelReason        String?
+  createdById         String?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  // Relationships
+  restaurant Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdByUser User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items      TakeawayOrderItem[]
+
+  @@unique([restaurantId, orderCode])
+  @@unique([restaurantId, businessDate, tokenNumber])
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+  @@index([restaurantId, businessDate])
+  @@index([restaurantId, createdAt])
+  @@map("takeaway_orders")
+}
+
+model TakeawayOrderItem {
+  id                  String   @id @default(uuid())
+  takeawayOrderId     String
+  menuItemId          String
+  variantId           String?
+  name                String
+  variantName         String?
+  quantity            Int      @default(1)
+  unitPrice           Decimal  @db.Decimal(10, 2)
+  subtotal            Decimal  @db.Decimal(10, 2)
+  specialInstructions String?
+  modifiers           Json?    @db.JsonB
+  createdAt           DateTime @default(now())
+
+  // Relationships
+  takeawayOrder TakeawayOrder    @relation(fields: [takeawayOrderId], references: [id], onDelete: Cascade)
+  menuItem      MenuItem         @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  variant       MenuItemVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([takeawayOrderId])
+  @@index([menuItemId])
+  @@map("takeaway_order_items")
+}
+
+model TakeawayDailySequence {
+  id              String   @id @default(uuid())
+  restaurantId    String
+  businessDate    String
+  lastTokenNumber Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, businessDate])
+  @@index([restaurantId])
+  @@map("takeaway_daily_sequences")
 }
