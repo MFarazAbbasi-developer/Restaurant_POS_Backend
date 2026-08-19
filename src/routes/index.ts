@@ -7,6 +7,7 @@ import { menuRouter } from '../modules/menu/menu.routes.js';
 import { zonesRouter, tablesRouter } from '../modules/tables/tables.routes.js';
 import { takeawayRouter } from '../modules/takeaway/takeaway.routes.js';
 import { customerRouter, deliveryRouter } from '../modules/delivery/delivery.routes.js';
+import { ordersRouter } from '../modules/orders/order.routes.js';
 
 export const apiRouter = Router();
 
@@ -35,6 +36,9 @@ apiRouter.use('/takeaway', takeawayRouter);
 // 8. Customer & Delivery Management module
 apiRouter.use('/customers', customerRouter);
 apiRouter.use('/delivery', deliveryRouter);
+
+// 9. Core Order & Billing module
+apiRouter.use('/orders', ordersRouter);
 
 /**
  * Future Business Modules:

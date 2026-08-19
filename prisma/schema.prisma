@@ -55,6 +55,8 @@ model Restaurant {
   deliveryOrders         DeliveryOrder[]
   deliveryDailySequences DeliveryDailySequence[]
   riderSettlements       RiderSettlement[]
+  orders                 Order[]
+  dailyOrderSequences    DailyOrderSequence[]
 
   @@index([slug])
   @@index([isActive])
@@ -88,6 +90,9 @@ model User {
   createdDeliveryOrders      DeliveryOrder[]   @relation("CreatedDeliveryOrders")
   riderSettlements           RiderSettlement[] @relation("RiderSettlements")
   receivedRiderSettlements   RiderSettlement[] @relation("ReceivedRiderSettlements")
+  createdOrders              Order[]           @relation("CreatedOrders")
+  voidedOrders               Order[]           @relation("VoidedOrders")
+  assignedOrders             Order[]           @relation("OrderRider")
 
   @@unique([restaurantId, username])
   @@index([restaurantId])
@@ -266,6 +271,7 @@ model MenuItem {
   modifierGroups         MenuItemModifierGroup[]
   takeawayOrderItems     TakeawayOrderItem[]
   deliveryOrderItems     DeliveryOrderItem[]
+  orderItems             OrderItem[]
 
   @@unique([restaurantId, itemCode])
   @@index([restaurantId])
@@ -291,6 +297,7 @@ model MenuItemVariant {
   menuItem           MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   takeawayOrderItems TakeawayOrderItem[]
   deliveryOrderItems DeliveryOrderItem[]
+  orderItems         OrderItem[]
 
   @@index([menuItemId])
   @@index([menuItemId, isActive, sortOrder])
@@ -341,7 +348,8 @@ model Modifier {
   updatedAt       DateTime @updatedAt
 
   // Relationships
-  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  modifierGroup      ModifierGroup       @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  orderItemModifiers OrderItemModifier[]
 
   @@index([modifierGroupId])
   @@index([modifierGroupId, isActive, sortOrder])
@@ -425,6 +433,7 @@ model RestaurantTable {
   mergedIntoTable RestaurantTable?  @relation("TableMerges", fields: [mergedIntoTableId], references: [id], onDelete: SetNull)
   mergedTables    RestaurantTable[] @relation("TableMerges")
   tableOrders     TableOrder[]
+  orders          Order[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId])
@@ -465,6 +474,7 @@ model TableOrder {
   restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   table        RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
   openedByUser User?           @relation(fields: [openedByUserId], references: [id], onDelete: SetNull)
+  orders       Order[]
 
   @@unique([restaurantId, orderCode])
   @@index([restaurantId])
@@ -585,6 +595,7 @@ model Customer {
   restaurant     Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   addresses      CustomerAddress[]
   deliveryOrders DeliveryOrder[]
+  orders         Order[]
 
   @@unique([restaurantId, phone])
   @@index([restaurantId])
@@ -627,6 +638,7 @@ model DeliveryZone {
   restaurant        Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   customerAddresses CustomerAddress[]
   deliveryOrders    DeliveryOrder[]
+  orders            Order[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId])
@@ -775,3 +787,184 @@ model RiderSettlement {
   @@index([restaurantId, businessDate])
   @@map("rider_settlements")
 }
+
+// -----------------------------------------------------------------------------
+// 23. Core Order & Billing Unified Models
+// -----------------------------------------------------------------------------
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  SERVED
+  COMPLETED
+  CANCELLED
+  VOIDED
+}
+
+enum OrderPaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum OrderItemStatus {
+  ACTIVE
+  VOIDED
+}
+
+model Order {
+  id                  String             @id @default(uuid())
+  restaurantId        String
+  orderCode           String
+  businessDate        String
+  orderType           OrderType          @default(DINE_IN)
+  status              OrderStatus        @default(PENDING)
+  paymentStatus       OrderPaymentStatus @default(UNPAID)
+  paymentMethod       String?            @default("CASH")
+
+  // Financial Breakdown
+  subtotal            Decimal            @default(0) @db.Decimal(10, 2)
+  itemDiscountsTotal  Decimal            @default(0) @db.Decimal(10, 2)
+  orderDiscountType   DiscountType?
+  orderDiscountValue  Decimal?           @db.Decimal(10, 2)
+  orderDiscountAmount Decimal            @default(0) @db.Decimal(10, 2)
+  orderDiscountReason String?
+  totalDiscount       Decimal            @default(0) @db.Decimal(10, 2)
+  taxRate             Decimal?           @db.Decimal(5, 2)
+  taxInclusive        Boolean            @default(false)
+  taxAmount           Decimal            @default(0) @db.Decimal(10, 2)
+  serviceChargeRate   Decimal?           @db.Decimal(5, 2)
+  serviceChargeAmount Decimal            @default(0) @db.Decimal(10, 2)
+  deliveryCharge      Decimal            @default(0) @db.Decimal(10, 2)
+  packagingCharge     Decimal            @default(0) @db.Decimal(10, 2)
+  roundingAmount      Decimal            @default(0) @db.Decimal(10, 2)
+  grandTotal          Decimal            @default(0) @db.Decimal(10, 2)
+  paidAmount          Decimal            @default(0) @db.Decimal(10, 2)
+  changeAmount        Decimal            @default(0) @db.Decimal(10, 2)
+
+  // Contextual Channel References
+  tableId             String?
+  tableOrderId        String?
+  guestCount          Int?               @default(1)
+  tokenNumber         Int?
+  customerId          String?
+  customerName        String?
+  customerPhone       String?
+  deliveryAddress     String?
+  deliveryZoneId      String?
+  riderId             String?
+  isAggregator        Boolean            @default(false)
+  aggregatorName      String?
+  aggregatorReference String?
+
+  // Lifecycle, Reason & Audit
+  notes               String?
+  cancelReason        String?
+  voidReason          String?
+  createdById         String?
+  voidedById          String?
+  closedAt            DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  // Relationships
+  restaurant          Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table               RestaurantTable?   @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  tableOrder          TableOrder?        @relation(fields: [tableOrderId], references: [id], onDelete: SetNull)
+  customer            Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  deliveryZone        DeliveryZone?      @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  rider               User?              @relation("OrderRider", fields: [riderId], references: [id], onDelete: SetNull)
+  createdByUser       User?              @relation("CreatedOrders", fields: [createdById], references: [id], onDelete: SetNull)
+  voidedByUser        User?              @relation("VoidedOrders", fields: [voidedById], references: [id], onDelete: SetNull)
+  items               OrderItem[]
+
+  @@unique([restaurantId, orderCode])
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+  @@index([restaurantId, orderType])
+  @@index([restaurantId, tableId, status])
+  @@index([restaurantId, businessDate])
+  @@index([restaurantId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String             @id @default(uuid())
+  orderId             String
+  menuItemId          String
+  variantId           String?
+  itemName            String
+  variantName         String?
+  quantity            Int                @default(1)
+  unitPrice           Decimal            @db.Decimal(10, 2)
+  modifiersPrice      Decimal            @default(0) @db.Decimal(10, 2)
+  itemGrossTotal      Decimal            @default(0) @db.Decimal(10, 2)
+  discountType        DiscountType?
+  discountValue       Decimal?           @db.Decimal(10, 2)
+  discountAmount      Decimal            @default(0) @db.Decimal(10, 2)
+  itemNetTotal        Decimal            @default(0) @db.Decimal(10, 2)
+  status              OrderItemStatus    @default(ACTIVE)
+  voidReason          String?
+  voidedAt            DateTime?
+  specialInstructions String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  // Relationships
+  order               Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem            MenuItem           @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  variant             MenuItemVariant?   @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  modifiers           OrderItemModifier[]
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id              String   @id @default(uuid())
+  orderItemId     String
+  modifierId      String
+  modifierGroupId String?
+  name            String
+  priceAdjustment Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
+
+  // Relationships
+  orderItem       OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifier        Modifier  @relation(fields: [modifierId], references: [id], onDelete: Restrict)
+
+  @@index([orderItemId])
+  @@index([modifierId])
+  @@map("order_item_modifiers")
+}
+
+model DailyOrderSequence {
+  id              String   @id @default(uuid())
+  restaurantId    String
+  businessDate    String
+  lastOrderNumber Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, businessDate])
+  @@index([restaurantId])
+  @@map("daily_order_sequences")
+}
+
