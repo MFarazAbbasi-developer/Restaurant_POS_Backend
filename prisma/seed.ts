@@ -42,7 +42,10 @@ const DEFAULT_PERMISSIONS = [
   // Inventory
   { key: 'inventory.view', description: 'View stock levels and inventory items' },
   { key: 'inventory.manage', description: 'Manage inventory items and suppliers' },
-  { key: 'inventory.adjust', description: 'Adjust stock counts and waste logs' },
+  { key: 'inventory.adjust', description: 'Adjust stock counts and physical inventory' },
+  { key: 'inventory.receive', description: 'Receive supplier purchases and stock deliveries' },
+  { key: 'inventory.transfer', description: 'Transfer stock between locations' },
+  { key: 'inventory.waste', description: 'Record spoiled, expired, or wasted inventory' },
 
   // Reports
   { key: 'reports.view', description: 'View sales and business reports' },
@@ -120,6 +123,9 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'inventory.view',
       'inventory.manage',
       'inventory.adjust',
+      'inventory.receive',
+      'inventory.transfer',
+      'inventory.waste',
       'reports.view',
       'reports.export',
       'tables.view',

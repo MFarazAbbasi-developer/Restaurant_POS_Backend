@@ -127,5 +127,28 @@ describe('Faraz POS - OpenAPI / Swagger Documentation Tests', () => {
     expect(paths).toContain('/api/v1/reports/staff-performance');
     expect(paths).toContain('/api/v1/reports/shifts-summary');
     expect(paths).toContain('/api/v1/reports/operations-performance');
+
+    // Inventory & Stock Management
+    expect(paths).toContain('/api/v1/inventory/locations');
+    expect(paths).toContain('/api/v1/inventory/locations/{id}');
+    expect(paths).toContain('/api/v1/inventory/suppliers');
+    expect(paths).toContain('/api/v1/inventory/suppliers/{id}');
+    expect(paths).toContain('/api/v1/inventory/items');
+    expect(paths).toContain('/api/v1/inventory/items/{id}');
+    expect(paths).toContain('/api/v1/inventory/recipes');
+    expect(paths).toContain('/api/v1/inventory/recipes/menu-item/{menuItemId}');
+    expect(paths).toContain('/api/v1/inventory/recipes/{id}');
+    expect(paths).toContain('/api/v1/inventory/purchases');
+    expect(paths).toContain('/api/v1/inventory/purchases/{id}');
+    expect(paths).toContain('/api/v1/inventory/adjustments');
+    expect(paths).toContain('/api/v1/inventory/adjustments/{id}');
+    expect(paths).toContain('/api/v1/inventory/wastage');
+    expect(paths).toContain('/api/v1/inventory/wastage/{id}');
+    expect(paths).toContain('/api/v1/inventory/transfers');
+    expect(paths).toContain('/api/v1/inventory/transfers/{id}');
+    expect(paths).toContain('/api/v1/inventory/ledger');
+    expect(paths).toContain('/api/v1/inventory/summary');
+    expect(paths).toContain('/api/v1/inventory/low-stock');
+    expect(paths).toContain('/api/v1/inventory/valuation');
   });
 });

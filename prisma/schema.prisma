@@ -62,6 +62,15 @@ model Restaurant {
   paymentRefunds         PaymentRefund[]
   cashTransactions       CashTransaction[]
   kitchenStations        KitchenStation[]
+  stockLocations         StockLocation[]
+  suppliers              Supplier[]
+  inventoryItems         InventoryItem[]
+  menuItemIngredients    MenuItemIngredient[]
+  stockMovements         StockMovement[]
+  purchaseOrders         PurchaseOrder[]
+  stockAdjustments       StockAdjustment[]
+  stockWastages          StockWastage[]
+  stockTransfers         StockTransfer[]
 
   @@index([slug])
   @@index([isActive])
@@ -103,6 +112,11 @@ model User {
   createdPayments            Payment[]         @relation("CreatedPayments")
   createdRefunds             PaymentRefund[]   @relation("CreatedRefunds")
   cashTransactions           CashTransaction[] @relation("CashTransactions")
+  createdStockMovements      StockMovement[]   @relation("CreatedStockMovements")
+  createdPurchaseOrders      PurchaseOrder[]   @relation("CreatedPurchaseOrders")
+  createdStockAdjustments    StockAdjustment[] @relation("CreatedStockAdjustments")
+  createdStockWastages       StockWastage[]    @relation("CreatedStockWastages")
+  createdStockTransfers      StockTransfer[]   @relation("CreatedStockTransfers")
 
   @@unique([restaurantId, username])
   @@index([restaurantId])
@@ -283,6 +297,7 @@ model MenuItem {
   takeawayOrderItems     TakeawayOrderItem[]
   deliveryOrderItems     DeliveryOrderItem[]
   orderItems             OrderItem[]
+  ingredients            MenuItemIngredient[]
 
   @@unique([restaurantId, itemCode])
   @@index([restaurantId])
@@ -309,6 +324,7 @@ model MenuItemVariant {
   takeawayOrderItems TakeawayOrderItem[]
   deliveryOrderItems DeliveryOrderItem[]
   orderItems         OrderItem[]
+  ingredients        MenuItemIngredient[]
 
   @@index([menuItemId])
   @@index([menuItemId, isActive, sortOrder])
@@ -361,6 +377,7 @@ model Modifier {
   // Relationships
   modifierGroup      ModifierGroup       @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
   orderItemModifiers OrderItemModifier[]
+  ingredients        MenuItemIngredient[]
 
   @@index([modifierGroupId])
   @@index([modifierGroupId, isActive, sortOrder])
@@ -1198,5 +1215,341 @@ model CategoryKitchenStation {
   @@index([categoryId])
   @@map("category_kitchen_stations")
 }
+
+// -----------------------------------------------------------------------------
+// 26. Inventory & Stock Management Models
+// -----------------------------------------------------------------------------
+enum StockMovementType {
+  PURCHASE_RECEIPT
+  SALE_CONSUMPTION
+  ORDER_VOID_RETURN
+  ADJUSTMENT_INCREASE
+  ADJUSTMENT_DECREASE
+  WASTAGE
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+model StockLocation {
+  id           String   @id @default(uuid())
+  restaurantId String
+  name         String
+  code         String?
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  restaurant       Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  inventoryItems   InventoryItem[]
+  fromMovements    StockMovement[]   @relation("FromLocationMovements")
+  toMovements      StockMovement[]   @relation("ToLocationMovements")
+  purchaseOrders   PurchaseOrder[]
+  stockAdjustments StockAdjustment[]
+  stockWastages    StockWastage[]
+  fromTransfers    StockTransfer[]   @relation("FromLocationTransfers")
+  toTransfers      StockTransfer[]   @relation("ToLocationTransfers")
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@map("stock_locations")
+}
+
+model Supplier {
+  id            String          @id @default(uuid())
+  restaurantId  String
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  taxNumber     String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Relationships
+  restaurant     Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  inventoryItems InventoryItem[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@map("suppliers")
+}
+
+model InventoryItem {
+  id               String   @id @default(uuid())
+  restaurantId     String
+  supplierId       String?
+  locationId       String?
+  itemCode         String
+  name             String
+  description      String?
+  unit             String   @default("PCS") // KG, G, L, ML, PCS, PORTION, PACK, CAN, BOTTLE
+  costPerUnit      Decimal  @default(0) @db.Decimal(10, 2)
+  currentStock     Decimal  @default(0) @db.Decimal(12, 4)
+  minStockLevel    Decimal  @default(0) @db.Decimal(12, 4)
+  targetStockLevel Decimal? @db.Decimal(12, 4)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relationships
+  restaurant           Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplier             Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  location             StockLocation?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  recipes              MenuItemIngredient[]
+  movements            StockMovement[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  stockAdjustmentItems StockAdjustmentItem[]
+  stockWastageItems    StockWastageItem[]
+  stockTransferItems   StockTransferItem[]
+
+  @@unique([restaurantId, itemCode])
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@index([restaurantId, locationId])
+  @@index([restaurantId, supplierId])
+  @@map("inventory_items")
+}
+
+model MenuItemIngredient {
+  id              String   @id @default(uuid())
+  restaurantId    String
+  menuItemId      String?
+  variantId       String?
+  modifierId      String?
+  inventoryItemId String
+  quantity        Decimal  @db.Decimal(12, 4)
+  wastePercentage Decimal  @default(0) @db.Decimal(5, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  restaurant    Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItem      MenuItem?        @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  variant       MenuItemVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  modifier      Modifier?        @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem    @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([restaurantId])
+  @@index([menuItemId])
+  @@index([variantId])
+  @@index([modifierId])
+  @@index([inventoryItemId])
+  @@map("menu_item_ingredients")
+}
+
+model StockMovement {
+  id              String            @id @default(uuid())
+  restaurantId    String
+  inventoryItemId String
+  fromLocationId  String?
+  toLocationId    String?
+  type            StockMovementType
+  quantityChange  Decimal           @db.Decimal(12, 4)
+  balanceAfter    Decimal           @db.Decimal(12, 4)
+  unitCost        Decimal           @default(0) @db.Decimal(10, 2)
+  totalCost       Decimal           @default(0) @db.Decimal(10, 2)
+  referenceType   String? // ORDER, PURCHASE_ORDER, ADJUSTMENT, WASTAGE, TRANSFER
+  referenceId     String?
+  reason          String?
+  createdById     String?
+  createdAt       DateTime          @default(now())
+
+  // Relationships
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem  @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  fromLocation  StockLocation? @relation("FromLocationMovements", fields: [fromLocationId], references: [id], onDelete: SetNull)
+  toLocation    StockLocation? @relation("ToLocationMovements", fields: [toLocationId], references: [id], onDelete: SetNull)
+  createdByUser User?          @relation("CreatedStockMovements", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([inventoryItemId])
+  @@index([restaurantId, type])
+  @@index([restaurantId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("stock_movements")
+}
+
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  restaurantId  String
+  supplierId    String?
+  locationId    String?
+  orderNumber   String
+  invoiceNumber String?
+  status        String              @default("RECEIVED") // RECEIVED, CANCELLED
+  totalCost     Decimal             @default(0) @db.Decimal(10, 2)
+  receivedAt    DateTime            @default(now())
+  notes         String?
+  createdById   String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  // Relationships
+  restaurant    Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplier      Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  location      StockLocation?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  items         PurchaseOrderItem[]
+  createdByUser User?               @relation("CreatedPurchaseOrders", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([restaurantId, orderNumber])
+  @@index([restaurantId])
+  @@index([supplierId])
+  @@index([locationId])
+  @@index([restaurantId, receivedAt])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  inventoryItemId String
+  quantity        Decimal       @db.Decimal(12, 4)
+  unitCost        Decimal       @db.Decimal(10, 2)
+  totalCost       Decimal       @db.Decimal(10, 2)
+
+  // Relationships
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseOrderId])
+  @@index([inventoryItemId])
+  @@map("purchase_order_items")
+}
+
+model StockAdjustment {
+  id                     String                @id @default(uuid())
+  restaurantId           String
+  locationId             String?
+  adjustmentNumber       String
+  reason                 String
+  totalItemsAdjusted     Int                   @default(0)
+  netValuationDifference Decimal               @default(0) @db.Decimal(10, 2)
+  notes                  String?
+  createdById            String?
+  createdAt              DateTime              @default(now())
+
+  // Relationships
+  restaurant    Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location      StockLocation?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  items         StockAdjustmentItem[]
+  createdByUser User?                 @relation("CreatedStockAdjustments", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([restaurantId, adjustmentNumber])
+  @@index([restaurantId])
+  @@index([locationId])
+  @@index([restaurantId, createdAt])
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentItem {
+  id                  String          @id @default(uuid())
+  adjustmentId        String
+  inventoryItemId     String
+  previousStock       Decimal         @db.Decimal(12, 4)
+  actualStock         Decimal         @db.Decimal(12, 4)
+  difference          Decimal         @db.Decimal(12, 4)
+  unitCost            Decimal         @db.Decimal(10, 2)
+  valuationDifference Decimal         @db.Decimal(10, 2)
+
+  // Relationships
+  adjustment    StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem   @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([adjustmentId])
+  @@index([inventoryItemId])
+  @@map("stock_adjustment_items")
+}
+
+model StockWastage {
+  id               String             @id @default(uuid())
+  restaurantId     String
+  locationId       String?
+  wastageNumber    String
+  reason           String // EXPIRED, SPOILED, PREPARATION_ERROR, DAMAGED, CONTAMINATED, OTHER
+  notes            String?
+  totalWastedValue Decimal            @default(0) @db.Decimal(10, 2)
+  createdById      String?
+  createdAt        DateTime           @default(now())
+
+  // Relationships
+  restaurant    Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  location      StockLocation?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  items         StockWastageItem[]
+  createdByUser User?              @relation("CreatedStockWastages", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([restaurantId, wastageNumber])
+  @@index([restaurantId])
+  @@index([locationId])
+  @@index([restaurantId, createdAt])
+  @@map("stock_wastages")
+}
+
+model StockWastageItem {
+  id              String        @id @default(uuid())
+  wastageId       String
+  inventoryItemId String
+  quantity        Decimal       @db.Decimal(12, 4)
+  unitCost        Decimal       @db.Decimal(10, 2)
+  totalCost       Decimal       @db.Decimal(10, 2)
+  itemReason      String?
+
+  // Relationships
+  wastage       StockWastage  @relation(fields: [wastageId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([wastageId])
+  @@index([inventoryItemId])
+  @@map("stock_wastage_items")
+}
+
+model StockTransfer {
+  id             String              @id @default(uuid())
+  restaurantId   String
+  fromLocationId String
+  toLocationId   String
+  transferNumber String
+  status         String              @default("COMPLETED") // COMPLETED, CANCELLED
+  notes          String?
+  createdById    String?
+  createdAt      DateTime            @default(now())
+
+  // Relationships
+  restaurant    Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  fromLocation  StockLocation       @relation("FromLocationTransfers", fields: [fromLocationId], references: [id], onDelete: Restrict)
+  toLocation    StockLocation       @relation("ToLocationTransfers", fields: [toLocationId], references: [id], onDelete: Restrict)
+  items         StockTransferItem[]
+  createdByUser User?               @relation("CreatedStockTransfers", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([restaurantId, transferNumber])
+  @@index([restaurantId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@index([restaurantId, createdAt])
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id              String        @id @default(uuid())
+  transferId      String
+  inventoryItemId String
+  quantity        Decimal       @db.Decimal(12, 4)
+  unitCost        Decimal       @db.Decimal(10, 2)
+
+  // Relationships
+  transfer      StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([transferId])
+  @@index([inventoryItemId])
+  @@map("stock_transfer_items")
+}
+
 
 

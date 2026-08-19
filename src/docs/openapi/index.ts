@@ -15,6 +15,7 @@ import { shiftsPaths } from './paths/shifts.docs.js';
 import { kitchenPaths } from './paths/kitchen.docs.js';
 import { receiptsPaths } from './paths/receipts.docs.js';
 import { reportsPaths } from './paths/reports.docs.js';
+import { inventoryPaths } from './paths/inventory.docs.js';
 
 export const openApiSpecification = {
   openapi: '3.0.3',
@@ -140,6 +141,11 @@ Welcome to the Faraz POS REST API documentation.
       description:
         'Executive sales summaries, channel breakdowns, payment distributions, product rankings, and operational reports',
     },
+    {
+      name: 'Inventory & Stock Management',
+      description:
+        'Raw ingredients, suppliers, storage locations, purchase receiving, stock adjustments, wastage, transfers, recipes, and movement ledger',
+    },
   ],
   paths: {
     ...healthPaths,
@@ -156,6 +162,7 @@ Welcome to the Faraz POS REST API documentation.
     ...kitchenPaths,
     ...receiptsPaths,
     ...reportsPaths,
+    ...inventoryPaths,
   },
   components: {
     securitySchemes,

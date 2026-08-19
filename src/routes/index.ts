@@ -13,6 +13,7 @@ import { shiftsRouter } from '../modules/shifts/shift.routes.js';
 import { kitchenRouter } from '../modules/kitchen/kitchen.routes.js';
 import { receiptsRouter } from '../modules/receipts/receipt.routes.js';
 import { reportsRouter } from '../modules/reports/report.routes.js';
+import { inventoryRouter } from '../modules/inventory/inventory.routes.js';
 
 export const apiRouter = Router();
 
@@ -57,6 +58,9 @@ apiRouter.use('/receipts', receiptsRouter);
 
 // 13. Reporting & Analytics module
 apiRouter.use('/reports', reportsRouter);
+
+// 14. Inventory & Stock Management module
+apiRouter.use('/inventory', inventoryRouter);
 
 /**
  * Future Business Modules:

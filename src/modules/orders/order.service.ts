@@ -4,6 +4,7 @@ import { AuditService } from '../../common/services/audit.service.js';
 import { RealtimeService } from '../../common/services/realtime.service.js';
 import { BadRequestError, NotFoundError } from '../../common/errors/app-error.js';
 import { ManagerAuthService } from '../auth/manager-auth.service.js';
+import { InventoryService } from '../inventory/inventory.service.js';
 import {
   CalculatedItemModifier,
   CalculatedOrderItem,
@@ -481,7 +482,10 @@ export class OrderService {
       ipAddress: ipAddress ?? null,
     });
 
-    // 5. Realtime Notification
+    // 5. Automatic Inventory Consumption
+    await InventoryService.consumeStockForOrder(restaurantId, createdOrder.id, actor.id);
+
+    // 6. Realtime Notification
     RealtimeService.emitToRestaurant(restaurantId, 'order:created', {
       orderId: createdOrder.id,
       orderCode: createdOrder.orderCode,
