@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -150,19 +150,41 @@ async function main() {
     where: { slug: 'faraz-flagship' },
     update: {
       name: 'Faraz Flagship Bistro',
+      legalName: 'Faraz Hospitality Group LLC',
       phone: '+1 (555) 019-2834',
       address: '100 Gourmet Avenue, Suite 10, New York, NY 10001',
       currency: 'USD',
       timezone: 'America/New_York',
+      taxNumber: 'US-NYC-TAX-88901',
+      taxRate: 8.875,
+      taxInclusive: false,
+      serviceChargeRate: 0,
+      serviceChargeEnabled: false,
+      dineInEnabled: true,
+      takeawayEnabled: true,
+      deliveryEnabled: true,
+      receiptHeader: 'Welcome to Faraz Flagship Bistro!',
+      receiptFooter: 'Thank you for dining with us! Please come again.',
       isActive: true,
     },
     create: {
       name: 'Faraz Flagship Bistro',
       slug: 'faraz-flagship',
+      legalName: 'Faraz Hospitality Group LLC',
       phone: '+1 (555) 019-2834',
       address: '100 Gourmet Avenue, Suite 10, New York, NY 10001',
       currency: 'USD',
       timezone: 'America/New_York',
+      taxNumber: 'US-NYC-TAX-88901',
+      taxRate: 8.875,
+      taxInclusive: false,
+      serviceChargeRate: 0,
+      serviceChargeEnabled: false,
+      dineInEnabled: true,
+      takeawayEnabled: true,
+      deliveryEnabled: true,
+      receiptHeader: 'Welcome to Faraz Flagship Bistro!',
+      receiptFooter: 'Thank you for dining with us! Please come again.',
       isActive: true,
     },
   });

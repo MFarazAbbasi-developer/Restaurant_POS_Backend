@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import { prisma } from '../../config/database.js';
 import { ForbiddenError } from '../../common/errors/app-error.js';
 

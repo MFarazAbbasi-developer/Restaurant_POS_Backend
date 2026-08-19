@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { healthRouter } from '../modules/health/health.routes.js';
 import { authRouter } from '../modules/auth/auth.routes.js';
+import { restaurantRouter } from '../modules/restaurant/restaurant.routes.js';
+import { staffRouter } from '../modules/staff/staff.routes.js';
 
 export const apiRouter = Router();
 
@@ -9,6 +11,12 @@ apiRouter.use('/health', healthRouter);
 
 // 2. Authentication & Session Management module
 apiRouter.use('/auth', authRouter);
+
+// 3. Restaurant Configuration module
+apiRouter.use('/restaurant', restaurantRouter);
+
+// 4. Staff Management module
+apiRouter.use('/staff', staffRouter);
 
 /**
  * Future Business Modules:

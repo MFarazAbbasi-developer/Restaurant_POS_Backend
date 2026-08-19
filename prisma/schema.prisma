@@ -14,17 +14,29 @@ datasource db {
 // 1. Restaurant (Tenant)
 // -----------------------------------------------------------------------------
 model Restaurant {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  phone     String?
-  address   String?
-  logo      String?
-  currency  String   @default("USD")
-  timezone  String   @default("UTC")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  name                 String
+  slug                 String   @unique
+  legalName            String?
+  phone                String?
+  address              String?
+  logo                 String?
+  currency             String   @default("USD")
+  timezone             String   @default("UTC")
+  taxNumber            String?
+  taxRate              Float    @default(0)
+  taxInclusive         Boolean  @default(false)
+  serviceChargeRate    Float    @default(0)
+  serviceChargeEnabled Boolean  @default(false)
+  dineInEnabled        Boolean  @default(true)
+  takeawayEnabled      Boolean  @default(true)
+  deliveryEnabled      Boolean  @default(true)
+  receiptHeader        String?
+  receiptFooter        String?
+  settings             Json?    @db.JsonB
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   // Relationships
   users     User[]
@@ -44,6 +56,7 @@ model User {
   restaurantId String
   name         String
   username     String
+  phone        String?
   pinHash      String
   passwordHash String?
   isActive     Boolean   @default(true)
