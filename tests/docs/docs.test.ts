@@ -98,5 +98,16 @@ describe('Faraz POS - OpenAPI / Swagger Documentation Tests', () => {
     expect(paths).toContain('/api/v1/shifts/current/adjustment');
     expect(paths).toContain('/api/v1/shifts/current/close');
     expect(paths).toContain('/api/v1/shifts/{id}/summary');
+
+    // Kitchen Operations & KDS
+    expect(paths).toContain('/api/v1/kitchen/queue');
+    expect(paths).toContain('/api/v1/kitchen/performance');
+    expect(paths).toContain('/api/v1/kitchen/orders/{id}');
+    expect(paths).toContain('/api/v1/kitchen/orders/{id}/status');
+    expect(paths).toContain('/api/v1/kitchen/orders/{id}/recall');
+    expect(paths).toContain('/api/v1/kitchen/orders/{orderId}/items/{itemId}/status');
+    expect(paths).toContain('/api/v1/kitchen/orders/{orderId}/items/{itemId}/recall');
+    expect(paths).toContain('/api/v1/kitchen/stations');
+    expect(paths).toContain('/api/v1/kitchen/stations/{id}');
   });
 });

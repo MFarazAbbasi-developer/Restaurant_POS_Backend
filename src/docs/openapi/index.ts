@@ -12,6 +12,7 @@ import { deliveryPaths } from './paths/delivery.docs.js';
 import { ordersPaths } from './paths/orders.docs.js';
 import { paymentsPaths } from './paths/payments.docs.js';
 import { shiftsPaths } from './paths/shifts.docs.js';
+import { kitchenPaths } from './paths/kitchen.docs.js';
 
 export const openApiSpecification = {
   openapi: '3.0.3',
@@ -115,6 +116,18 @@ Welcome to the Faraz POS REST API documentation.
       name: 'Payments & Cash Management - Cash Drawer & Shifts',
       description: 'Cash register shifts, cash drops, adjustments, and shift settlement reporting',
     },
+    {
+      name: 'Kitchen Operations & KDS - Queue',
+      description: 'Active kitchen order queue, urgency metrics, and performance analytics',
+    },
+    {
+      name: 'Kitchen Operations & KDS - Bump Bar',
+      description: 'Order and item preparation state advancement and ticket recall',
+    },
+    {
+      name: 'Kitchen Operations & KDS - Stations',
+      description: 'Kitchen preparation stations and category routing configurations',
+    },
   ],
   paths: {
     ...healthPaths,
@@ -128,6 +141,7 @@ Welcome to the Faraz POS REST API documentation.
     ...ordersPaths,
     ...paymentsPaths,
     ...shiftsPaths,
+    ...kitchenPaths,
   },
   components: {
     securitySchemes,

@@ -491,6 +491,12 @@ export class OrderService {
       tableId: createdOrder.tableId,
       customerName: createdOrder.customerName,
     });
+    RealtimeService.emitToRestaurant(restaurantId, 'kitchen:order_new', {
+      orderId: createdOrder.id,
+      orderCode: createdOrder.orderCode,
+      orderType: createdOrder.orderType,
+      status: createdOrder.status,
+    });
 
     return this.serializeOrder(createdOrder);
   }
@@ -853,7 +859,7 @@ export class OrderService {
     });
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
-      // 1. Mark item as voided
+      // 1. Mark item as VOIDED
       await tx.orderItem.update({
         where: { id: itemId },
         data: {
@@ -909,6 +915,11 @@ export class OrderService {
       orderCode: updatedOrder.orderCode,
       voidedItemId: itemId,
       newGrandTotal: updatedOrder.grandTotal.toNumber(),
+    });
+    RealtimeService.emitToRestaurant(restaurantId, 'kitchen:item_voided', {
+      orderId: updatedOrder.id,
+      orderCode: updatedOrder.orderCode,
+      voidedItemId: itemId,
     });
 
     return this.serializeOrder(updatedOrder);

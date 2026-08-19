@@ -65,6 +65,11 @@ const DEFAULT_PERMISSIONS = [
   { key: 'customer.view', description: 'Search and view customer phone records and addresses' },
   { key: 'customer.manage', description: 'Create and edit customer records and saved addresses' },
 
+  // Kitchen Display & Operations
+  { key: 'kitchen.view', description: 'View kitchen active orders, prep queue, and station tickets' },
+  { key: 'kitchen.update', description: 'Update kitchen order and item prep status, bump tickets, and recall orders' },
+  { key: 'kitchen.manage', description: 'Create, update, and organize kitchen stations and category routing' },
+
   // Settings
   { key: 'settings.view', description: 'View restaurant configurations and settings' },
   { key: 'settings.manage', description: 'Modify restaurant configurations and POS settings' },
@@ -98,6 +103,9 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'shifts.open',
       'shifts.close',
       'shifts.cash_drop',
+      'kitchen.view',
+      'kitchen.update',
+      'kitchen.manage',
       'menu.view',
       'menu.manage',
       'menu.price_update',
@@ -136,6 +144,7 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'shifts.open',
       'shifts.close',
       'shifts.cash_drop',
+      'kitchen.view',
       'menu.view',
       'inventory.view',
       'tables.view',
@@ -152,11 +161,11 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
   },
   WAITER: {
     description: 'Floor staff taking table orders and viewing menu items',
-    permissions: ['orders.view', 'orders.create', 'orders.update', 'menu.view', 'tables.view'],
+    permissions: ['orders.view', 'orders.create', 'orders.update', 'kitchen.view', 'menu.view', 'tables.view'],
   },
   KITCHEN: {
     description: 'Kitchen display / prep staff tracking and updating food orders',
-    permissions: ['orders.view', 'orders.update', 'menu.view', 'inventory.view'],
+    permissions: ['orders.view', 'orders.update', 'kitchen.view', 'kitchen.update', 'menu.view', 'inventory.view'],
   },
   DELIVERY: {
     description: 'Delivery dispatch and drivers updating delivery status and collecting cash',
