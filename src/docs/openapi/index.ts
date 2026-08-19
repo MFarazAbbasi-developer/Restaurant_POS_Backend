@@ -16,6 +16,7 @@ import { kitchenPaths } from './paths/kitchen.docs.js';
 import { receiptsPaths } from './paths/receipts.docs.js';
 import { reportsPaths } from './paths/reports.docs.js';
 import { inventoryPaths } from './paths/inventory.docs.js';
+import { promotionsPaths } from './paths/promotions.docs.js';
 
 export const openApiSpecification = {
   openapi: '3.0.3',
@@ -58,74 +59,39 @@ Welcome to the Faraz POS REST API documentation.
     },
     {
       name: 'Staff Management',
-      description: 'Staff accounts, roles, PIN management, and status controls',
-    },
-    { name: 'Menu Management - Categories', description: 'Menu category hierarchy and sorting' },
-    {
-      name: 'Menu Management - Items',
-      description: 'Menu items, pricing, 86 availability, and catalog management',
+      description: 'Employee profiles, role assignments, status management, and PIN changes',
     },
     {
-      name: 'Menu Management - Variants',
-      description: 'Item portion sizes, variations, and pricing',
+      name: 'Menu & Catalog Management',
+      description: 'Menu categories, products, variants, modifier groups, and choices',
     },
     {
-      name: 'Menu Management - Modifiers',
-      description: 'Modifier groups, choices, and price adjustments',
-    },
-    { name: 'Menu Management', description: 'Complete POS nested catalog retrieval' },
-    {
-      name: 'Tables & Zones - Seating Zones',
-      description: 'Restaurant seating zones and floor management',
-    },
-    {
-      name: 'Tables & Zones - Tables',
-      description: 'Physical tables, capacities, and real-time floor plan statuses',
-    },
-    {
-      name: 'Tables & Zones - Operations',
-      description: 'Table transfers, table merging, splitting, and sub-orders',
+      name: 'Tables & Floor Management',
+      description: 'Dining floors, seating zones, physical tables, layout, and occupancy state',
     },
     {
       name: 'Takeaway Management',
-      description: 'Takeaway orders, sequential daily tokens, and queue tracking',
+      description: 'Takeaway orders, daily token sequence, pickup queue, and customer handling',
     },
     {
-      name: 'Delivery & Customers - Customers',
-      description: 'Customer profiles, phone lookup, and address book',
-    },
-    {
-      name: 'Delivery & Customers - Delivery Orders',
-      description: 'Phone-in delivery orders, zone fees, and status tracking',
-    },
-    {
-      name: 'Delivery & Customers - Riders',
-      description: 'Delivery rider fleet management and status',
-    },
-    {
-      name: 'Delivery & Customers - Delivery Zones',
-      description: 'Delivery coverage zones, fees, and distance thresholds',
+      name: 'Customer & Delivery Management',
+      description:
+        'Customer profiles, delivery addresses, delivery zones, delivery lifecycle, and rider cash settlements',
     },
     {
       name: 'Core Orders & Billing',
       description:
-        'Unified order engine, line item additions, voids, discounts, and daily summaries',
+        'Unified multi-channel order engine, daily order codes, item discounts, bill computations, voids, and cancellations',
     },
     {
-      name: 'Payments & Cash Management - Payments',
-      description: 'Payment processing (Cash, Card, Wallets), exact change, and refunds',
+      name: 'Payments & Cash Management',
+      description:
+        'Multi-tender payments, partial settlements, refunds, and cashier register shifts',
     },
     {
-      name: 'Payments & Cash Management - Cash Drawer & Shifts',
-      description: 'Cash register shifts, cash drops, adjustments, and shift settlement reporting',
-    },
-    {
-      name: 'Kitchen Operations & KDS - Queue',
-      description: 'Active kitchen order queue, urgency metrics, and performance analytics',
-    },
-    {
-      name: 'Kitchen Operations & KDS - Bump Bar',
-      description: 'Order and item preparation state advancement and ticket recall',
+      name: 'Kitchen Operations & KDS',
+      description:
+        'Kitchen display orders, preparation queue, station routing, item bumping, and ticket recalls',
     },
     {
       name: 'Kitchen Operations & KDS - Stations',
@@ -146,6 +112,11 @@ Welcome to the Faraz POS REST API documentation.
       description:
         'Raw ingredients, suppliers, storage locations, purchase receiving, stock adjustments, wastage, transfers, recipes, and movement ledger',
     },
+    {
+      name: 'Discounts & Promotions',
+      description:
+        'Promotional discount campaigns, item/category rules, BXGY (BOGO), promo codes, scheduling, and pre-checkout preview',
+    },
   ],
   paths: {
     ...healthPaths,
@@ -163,6 +134,7 @@ Welcome to the Faraz POS REST API documentation.
     ...receiptsPaths,
     ...reportsPaths,
     ...inventoryPaths,
+    ...promotionsPaths,
   },
   components: {
     securitySchemes,

@@ -45,7 +45,10 @@ export class InventoryController {
 
   public static async getLocation(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const location = await InventoryService.getLocation(req.user!.restaurantId, req.params.id as string);
+      const location = await InventoryService.getLocation(
+        req.user!.restaurantId,
+        req.params.id as string,
+      );
       ApiResponse.success(res, {
         data: { location },
         message: 'Stock location retrieved successfully',
@@ -136,7 +139,10 @@ export class InventoryController {
 
   public static async getSupplier(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const supplier = await InventoryService.getSupplier(req.user!.restaurantId, req.params.id as string);
+      const supplier = await InventoryService.getSupplier(
+        req.user!.restaurantId,
+        req.params.id as string,
+      );
       ApiResponse.success(res, {
         data: { supplier },
         message: 'Supplier retrieved successfully',
@@ -505,7 +511,10 @@ export class InventoryController {
 
   public static async getWastage(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const wastage = await InventoryService.getWastage(req.user!.restaurantId, req.params.id as string);
+      const wastage = await InventoryService.getWastage(
+        req.user!.restaurantId,
+        req.params.id as string,
+      );
       ApiResponse.success(res, {
         data: { wastage },
         message: 'Stock wastage record retrieved successfully',
@@ -563,7 +572,10 @@ export class InventoryController {
 
   public static async getTransfer(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const transfer = await InventoryService.getTransfer(req.user!.restaurantId, req.params.id as string);
+      const transfer = await InventoryService.getTransfer(
+        req.user!.restaurantId,
+        req.params.id as string,
+      );
       ApiResponse.success(res, {
         data: { transfer },
         message: 'Stock transfer retrieved successfully',

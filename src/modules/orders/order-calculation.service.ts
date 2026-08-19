@@ -29,6 +29,8 @@ export interface OrderCalculationInput {
   orderDiscountType?: 'PERCENTAGE' | 'FIXED_AMOUNT' | null;
   orderDiscountValue?: number | Prisma.Decimal | null;
   orderDiscountReason?: string | null;
+  promoCode?: string | null;
+  promotionDiscount?: number | Prisma.Decimal | null;
   taxRate?: number | Prisma.Decimal | null;
   taxInclusive?: boolean;
   serviceChargeRate?: number | Prisma.Decimal | null;
@@ -44,6 +46,8 @@ export interface OrderCalculationResult {
   orderDiscountValue: Prisma.Decimal | null;
   orderDiscountAmount: Prisma.Decimal;
   orderDiscountReason: string | null;
+  promoCode: string | null;
+  promotionDiscount: Prisma.Decimal;
   totalDiscount: Prisma.Decimal;
   discountedSubtotal: Prisma.Decimal;
   taxRate: Prisma.Decimal | null;
@@ -154,7 +158,11 @@ export class OrderCalculationService {
       }
     }
 
-    const totalDiscount = itemDiscountsTotal.add(orderDiscountAmount);
+    const promotionDiscountDec = input.promotionDiscount
+      ? new Prisma.Decimal(input.promotionDiscount)
+      : new Prisma.Decimal(0);
+
+    const totalDiscount = itemDiscountsTotal.add(orderDiscountAmount).add(promotionDiscountDec);
     const discountedSubtotal = Prisma.Decimal.max(
       new Prisma.Decimal(0),
       subtotal.sub(totalDiscount),
@@ -214,6 +222,8 @@ export class OrderCalculationService {
       orderDiscountValue: orderDiscountValueDec ? orderDiscountValueDec.toDecimalPlaces(2) : null,
       orderDiscountAmount: orderDiscountAmount.toDecimalPlaces(2),
       orderDiscountReason: input.orderDiscountReason ?? null,
+      promoCode: input.promoCode ?? null,
+      promotionDiscount: promotionDiscountDec.toDecimalPlaces(2),
       totalDiscount: totalDiscount.toDecimalPlaces(2),
       discountedSubtotal: discountedSubtotal.toDecimalPlaces(2),
       taxRate: taxRateDec ? taxRateDec.toDecimalPlaces(2) : null,

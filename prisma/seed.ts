@@ -78,6 +78,11 @@ const DEFAULT_PERMISSIONS = [
   { key: 'receipts.reprint', description: 'Authorize reprinting duplicate receipts and bills' },
   { key: 'receipts.manage', description: 'Configure receipt layouts, header/footer text, and printer settings' },
 
+  // Discounts & Promotions
+  { key: 'promotions.view', description: 'View promotional campaigns, discount rules, and usage history' },
+  { key: 'promotions.manage', description: 'Create, update, and manage promotional campaigns and discount rules' },
+  { key: 'promotions.apply', description: 'Apply promotional discount codes and promo overrides to orders' },
+
   // Settings
   { key: 'settings.view', description: 'View restaurant configurations and settings' },
   { key: 'settings.manage', description: 'Modify restaurant configurations and POS settings' },
@@ -126,6 +131,9 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'inventory.receive',
       'inventory.transfer',
       'inventory.waste',
+      'promotions.view',
+      'promotions.manage',
+      'promotions.apply',
       'reports.view',
       'reports.export',
       'tables.view',
@@ -163,6 +171,8 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'receipts.reprint',
       'menu.view',
       'inventory.view',
+      'promotions.view',
+      'promotions.apply',
       'tables.view',
       'tables.manage',
       'delivery.view',

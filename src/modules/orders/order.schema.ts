@@ -41,6 +41,7 @@ export const createOrderSchema = z
     flatDeliveryFee: z.number().min(0).optional(),
     packagingCharge: z.number().min(0).optional(),
     notes: z.string().trim().max(500).optional(),
+    promoCode: z.string().trim().toUpperCase().optional(),
     paymentMethod: z.string().trim().max(50).optional().default('CASH'),
     isAggregator: z.boolean().optional().default(false),
     aggregatorName: z.string().trim().max(100).optional(),

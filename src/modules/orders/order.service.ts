@@ -5,6 +5,8 @@ import { RealtimeService } from '../../common/services/realtime.service.js';
 import { BadRequestError, NotFoundError } from '../../common/errors/app-error.js';
 import { ManagerAuthService } from '../auth/manager-auth.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
+import { PromotionEngine } from '../promotions/promotion-engine.service.js';
+import { PromotionService } from '../promotions/promotion.service.js';
 import {
   CalculatedItemModifier,
   CalculatedOrderItem,
@@ -35,6 +37,7 @@ export interface CreateOrderInput {
   flatDeliveryFee?: number;
   packagingCharge?: number;
   notes?: string;
+  promoCode?: string;
   paymentMethod?: string;
   isAggregator?: boolean;
   aggregatorName?: string;
@@ -83,6 +86,10 @@ export class OrderService {
         order.orderDiscountAmount instanceof Prisma.Decimal
           ? order.orderDiscountAmount.toNumber()
           : Number(order.orderDiscountAmount || 0),
+      promotionDiscount:
+        order.promotionDiscount instanceof Prisma.Decimal
+          ? order.promotionDiscount.toNumber()
+          : Number(order.promotionDiscount || 0),
       totalDiscount:
         order.totalDiscount instanceof Prisma.Decimal
           ? order.totalDiscount.toNumber()
@@ -160,6 +167,10 @@ export class OrderService {
                 item.discountAmount instanceof Prisma.Decimal
                   ? item.discountAmount.toNumber()
                   : Number(item.discountAmount || 0),
+              promotionDiscount:
+                item.promotionDiscount instanceof Prisma.Decimal
+                  ? item.promotionDiscount.toNumber()
+                  : Number(item.promotionDiscount || 0),
               itemNetTotal:
                 item.itemNetTotal instanceof Prisma.Decimal
                   ? item.itemNetTotal.toNumber()
@@ -346,9 +357,47 @@ export class OrderService {
     // Resolve item snapshots and pricing
     const calculatedItems = await this.resolveAndCalculateItems(restaurantId, input.items);
 
+    // Evaluate automatic & promo-code promotions
+    const subtotalBeforePromos = calculatedItems.reduce(
+      (sum, it) => sum.add(it.itemGrossTotal),
+      new Prisma.Decimal(0),
+    );
+
+    const promoResult = await PromotionEngine.evaluatePromotions({
+      restaurantId,
+      orderType: input.orderType,
+      customerId: input.customerId,
+      promoCode: input.promoCode,
+      items: calculatedItems.map((it) => ({
+        menuItemId: it.menuItemId,
+        variantId: it.variantId,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        modifiersPrice: it.modifiersPrice,
+        itemGrossTotal: it.itemGrossTotal,
+      })),
+      subtotal: subtotalBeforePromos,
+    });
+
+    if (input.promoCode && !promoResult.appliedPromoCode) {
+      await PromotionService.validatePromoCode(restaurantId, {
+        code: input.promoCode,
+        orderType: input.orderType,
+        customerId: input.customerId,
+        items: input.items.map((it) => ({
+          menuItemId: it.menuItemId,
+          variantId: it.variantId,
+          quantity: it.quantity,
+          modifierIds: it.modifierIds ?? [],
+        })),
+      });
+    }
+
     // Calculate order financial breakdown
     const orderCalculation = OrderCalculationService.calculateOrderTotals({
       items: calculatedItems,
+      promoCode: promoResult.appliedPromoCode ?? input.promoCode ?? null,
+      promotionDiscount: promoResult.totalPromotionDiscount,
       taxRate: restaurant.taxRate,
       taxInclusive: restaurant.taxInclusive,
       serviceChargeRate: restaurant.serviceChargeRate,
@@ -390,6 +439,8 @@ export class OrderService {
           orderDiscountValue: orderCalculation.orderDiscountValue,
           orderDiscountAmount: orderCalculation.orderDiscountAmount,
           orderDiscountReason: orderCalculation.orderDiscountReason,
+          promoCode: orderCalculation.promoCode,
+          promotionDiscount: orderCalculation.promotionDiscount,
           totalDiscount: orderCalculation.totalDiscount,
           taxRate: orderCalculation.taxRate,
           taxInclusive: orderCalculation.taxInclusive,
@@ -426,6 +477,8 @@ export class OrderService {
               ...(it.discountType ? { discountType: it.discountType } : {}),
               ...(it.discountValue ? { discountValue: it.discountValue } : {}),
               discountAmount: it.discountAmount,
+              promotionDiscount:
+                promoResult.itemPromotions.get(it.menuItemId) ?? new Prisma.Decimal(0),
               itemNetTotal: it.itemNetTotal,
               status: 'ACTIVE',
               ...(it.specialInstructions ? { specialInstructions: it.specialInstructions } : {}),
@@ -454,6 +507,17 @@ export class OrderService {
           },
         },
       });
+
+      // Record promotion redemptions
+      if (promoResult.appliedPromotions.length > 0) {
+        await PromotionService.recordPromotionUsages(
+          tx,
+          restaurantId,
+          newOrder.id,
+          promoResult.appliedPromotions,
+          input.customerId,
+        );
+      }
 
       // 3. If dine-in and table was AVAILABLE, update table status to OCCUPIED
       if (table && table.status === 'AVAILABLE') {

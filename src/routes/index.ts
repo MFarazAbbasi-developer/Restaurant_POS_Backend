@@ -14,6 +14,7 @@ import { kitchenRouter } from '../modules/kitchen/kitchen.routes.js';
 import { receiptsRouter } from '../modules/receipts/receipt.routes.js';
 import { reportsRouter } from '../modules/reports/report.routes.js';
 import { inventoryRouter } from '../modules/inventory/inventory.routes.js';
+import { promotionRouter } from '../modules/promotions/promotion.routes.js';
 
 export const apiRouter = Router();
 
@@ -61,6 +62,9 @@ apiRouter.use('/reports', reportsRouter);
 
 // 14. Inventory & Stock Management module
 apiRouter.use('/inventory', inventoryRouter);
+
+// 15. Discounts & Promotions module
+apiRouter.use('/promotions', promotionRouter);
 
 /**
  * Future Business Modules:

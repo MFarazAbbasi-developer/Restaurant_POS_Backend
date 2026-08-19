@@ -150,5 +150,13 @@ describe('Faraz POS - OpenAPI / Swagger Documentation Tests', () => {
     expect(paths).toContain('/api/v1/inventory/summary');
     expect(paths).toContain('/api/v1/inventory/low-stock');
     expect(paths).toContain('/api/v1/inventory/valuation');
+
+    // Discounts & Promotions
+    expect(paths).toContain('/api/v1/promotions');
+    expect(paths).toContain('/api/v1/promotions/{id}');
+    expect(paths).toContain('/api/v1/promotions/{id}/toggle-status');
+    expect(paths).toContain('/api/v1/promotions/{id}/usages');
+    expect(paths).toContain('/api/v1/promotions/preview');
+    expect(paths).toContain('/api/v1/promotions/validate-code');
   });
 });
