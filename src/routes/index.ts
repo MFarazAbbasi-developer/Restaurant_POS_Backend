@@ -3,6 +3,7 @@ import { healthRouter } from '../modules/health/health.routes.js';
 import { authRouter } from '../modules/auth/auth.routes.js';
 import { restaurantRouter } from '../modules/restaurant/restaurant.routes.js';
 import { staffRouter } from '../modules/staff/staff.routes.js';
+import { menuRouter } from '../modules/menu/menu.routes.js';
 
 export const apiRouter = Router();
 
@@ -17,6 +18,9 @@ apiRouter.use('/restaurant', restaurantRouter);
 
 // 4. Staff Management module
 apiRouter.use('/staff', staffRouter);
+
+// 5. Menu Management module
+apiRouter.use('/menu', menuRouter);
 
 /**
  * Future Business Modules:

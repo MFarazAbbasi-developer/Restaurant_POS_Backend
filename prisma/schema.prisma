@@ -39,9 +39,12 @@ model Restaurant {
   updatedAt            DateTime @updatedAt
 
   // Relationships
-  users     User[]
-  roles     Role[]
-  auditLogs AuditLog[]
+  users          User[]
+  roles          Role[]
+  auditLogs      AuditLog[]
+  categories     Category[]
+  menuItems      MenuItem[]
+  modifierGroups ModifierGroup[]
 
   @@index([slug])
   @@index([isActive])
@@ -197,4 +200,154 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([action])
   @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// 9. Category (Menu Category)
+// -----------------------------------------------------------------------------
+model Category {
+  id           String   @id @default(uuid())
+  restaurantId String
+  name         String
+  description  String?
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems  MenuItem[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive, sortOrder])
+  @@map("categories")
+}
+
+// -----------------------------------------------------------------------------
+// 10. MenuItem
+// -----------------------------------------------------------------------------
+model MenuItem {
+  id           String   @id @default(uuid())
+  restaurantId String
+  categoryId   String
+  itemCode     String
+  name         String
+  urduName     String?
+  description  String?
+  basePrice    Decimal  @default(0) @db.Decimal(10, 2)
+  taxRate      Decimal? @db.Decimal(5, 2)
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  restaurant     Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category       Category                @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  variants       MenuItemVariant[]
+  modifierGroups MenuItemModifierGroup[]
+
+  @@unique([restaurantId, itemCode])
+  @@index([restaurantId])
+  @@index([categoryId])
+  @@index([restaurantId, categoryId, isActive, isAvailable, sortOrder])
+  @@map("menu_items")
+}
+
+// -----------------------------------------------------------------------------
+// 11. MenuItemVariant (Portion / Price Variants)
+// -----------------------------------------------------------------------------
+model MenuItemVariant {
+  id         String   @id @default(uuid())
+  menuItemId String
+  name       String
+  price      Decimal  @db.Decimal(10, 2)
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relationships
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([menuItemId])
+  @@index([menuItemId, isActive, sortOrder])
+  @@map("menu_item_variants")
+}
+
+// -----------------------------------------------------------------------------
+// 12. ModifierGroup & SelectionType Enum
+// -----------------------------------------------------------------------------
+enum ModifierSelectionType {
+  SINGLE
+  MULTIPLE
+}
+
+model ModifierGroup {
+  id            String                @id @default(uuid())
+  restaurantId  String
+  name          String
+  selectionType ModifierSelectionType @default(SINGLE)
+  minSelections Int                   @default(0)
+  maxSelections Int                   @default(1)
+  sortOrder     Int                   @default(0)
+  isActive      Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  // Relationships
+  restaurant Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  modifiers  Modifier[]
+  menuItems  MenuItemModifierGroup[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive, sortOrder])
+  @@map("modifier_groups")
+}
+
+// -----------------------------------------------------------------------------
+// 13. Modifier (Individual Option within a Group)
+// -----------------------------------------------------------------------------
+model Modifier {
+  id              String   @id @default(uuid())
+  modifierGroupId String
+  name            String
+  priceAdjustment Decimal  @default(0) @db.Decimal(10, 2)
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relationships
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@index([modifierGroupId])
+  @@index([modifierGroupId, isActive, sortOrder])
+  @@map("modifiers")
+}
+
+// -----------------------------------------------------------------------------
+// 14. MenuItemModifierGroup (Join Table: MenuItem <-> ModifierGroup)
+// -----------------------------------------------------------------------------
+model MenuItemModifierGroup {
+  id              String   @id @default(uuid())
+  menuItemId      String
+  modifierGroupId String
+  sortOrder       Int      @default(0)
+  isRequired      Boolean  @default(false)
+  minSelections   Int?
+  maxSelections   Int?
+  createdAt       DateTime @default(now())
+
+  // Relationships
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, modifierGroupId])
+  @@index([menuItemId])
+  @@index([modifierGroupId])
+  @@index([menuItemId, sortOrder])
+  @@map("menu_item_modifier_groups")
 }
