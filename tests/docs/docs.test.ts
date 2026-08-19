@@ -170,5 +170,12 @@ describe('Faraz POS - OpenAPI / Swagger Documentation Tests', () => {
     expect(paths).toContain('/api/v1/loyalty/preview-redemption');
     expect(paths).toContain('/api/v1/loyalty/adjust');
     expect(paths).toContain('/api/v1/loyalty/transactions');
+
+    // Reservations & Table Bookings
+    expect(paths).toContain('/api/v1/reservations');
+    expect(paths).toContain('/api/v1/reservations/availability');
+    expect(paths).toContain('/api/v1/reservations/{id}');
+    expect(paths).toContain('/api/v1/reservations/{id}/assign-table');
+    expect(paths).toContain('/api/v1/reservations/{id}/status');
   });
 });

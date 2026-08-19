@@ -89,6 +89,11 @@ const DEFAULT_PERMISSIONS = [
   { key: 'loyalty.adjust', description: 'Perform manual manager-authorized points adjustments' },
   { key: 'loyalty.redeem', description: 'Redeem loyalty points during checkout' },
 
+  // Reservations & Table Bookings
+  { key: 'reservations.view', description: 'View table bookings, schedules, availability, and customer reservation history' },
+  { key: 'reservations.manage', description: 'Create, update, assign/reassign tables, and manage reservations' },
+  { key: 'reservations.status', description: 'Transition reservation statuses (confirm, seat, complete, cancel, no-show)' },
+
   // Settings
   { key: 'settings.view', description: 'View restaurant configurations and settings' },
   { key: 'settings.manage', description: 'Modify restaurant configurations and POS settings' },
@@ -144,6 +149,9 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'loyalty.manage',
       'loyalty.adjust',
       'loyalty.redeem',
+      'reservations.view',
+      'reservations.manage',
+      'reservations.status',
       'reports.view',
       'reports.export',
       'tables.view',
@@ -185,6 +193,9 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'promotions.apply',
       'loyalty.view',
       'loyalty.redeem',
+      'reservations.view',
+      'reservations.manage',
+      'reservations.status',
       'tables.view',
       'tables.manage',
       'delivery.view',

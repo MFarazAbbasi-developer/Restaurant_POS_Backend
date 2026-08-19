@@ -77,6 +77,7 @@ model Restaurant {
   loyaltyTiers           LoyaltyTier[]
   loyaltyAccounts        LoyaltyAccount[]
   loyaltyTransactions    LoyaltyTransaction[]
+  reservations           Reservation[]
 
   @@index([slug])
   @@index([isActive])
@@ -124,6 +125,7 @@ model User {
   createdStockWastages       StockWastage[]    @relation("CreatedStockWastages")
   createdStockTransfers      StockTransfer[]   @relation("CreatedStockTransfers")
   createdLoyaltyTransactions LoyaltyTransaction[] @relation("CreatedLoyaltyTransactions")
+  createdReservations        Reservation[]     @relation("CreatedReservations")
 
   @@unique([restaurantId, username])
   @@index([restaurantId])
@@ -471,6 +473,7 @@ model RestaurantTable {
   mergedTables    RestaurantTable[] @relation("TableMerges")
   tableOrders     TableOrder[]
   orders          Order[]
+  reservations    Reservation[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId])
@@ -637,6 +640,7 @@ model Customer {
   promotionUsages PromotionUsage[]
   loyaltyAccount  LoyaltyAccount?
   loyaltyTransactions LoyaltyTransaction[]
+  reservations    Reservation[]
 
   @@unique([restaurantId, phone])
   @@index([restaurantId])
@@ -1807,6 +1811,58 @@ model LoyaltyTransaction {
   @@index([restaurantId, createdAt])
   @@map("loyalty_transactions")
 }
+
+// -----------------------------------------------------------------------------
+// 40. Reservations & Table Bookings
+// -----------------------------------------------------------------------------
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  SEATED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model Reservation {
+  id               String            @id @default(uuid())
+  restaurantId     String
+  reservationCode  String
+  customerId       String?
+  customerName     String
+  customerPhone    String
+  customerEmail    String?
+  guestCount       Int               @default(2)
+  tableId          String?
+  reservationDate  DateTime          @db.Date
+  startTime        DateTime
+  endTime          DateTime
+  durationMinutes  Int               @default(90)
+  status           ReservationStatus @default(CONFIRMED)
+  specialRequests  String?
+  cancelReason     String?
+  seatedAt         DateTime?
+  completedAt      DateTime?
+  createdById      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  // Relationships
+  restaurant       Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer         Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  table            RestaurantTable?  @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  createdByUser    User?             @relation("CreatedReservations", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([restaurantId, reservationCode])
+  @@index([restaurantId])
+  @@index([tableId])
+  @@index([customerId])
+  @@index([restaurantId, reservationDate])
+  @@index([restaurantId, status])
+  @@index([restaurantId, startTime, endTime])
+  @@map("reservations")
+}
+
 
 
 

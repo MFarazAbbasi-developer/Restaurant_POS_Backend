@@ -16,6 +16,7 @@ import { reportsRouter } from '../modules/reports/report.routes.js';
 import { inventoryRouter } from '../modules/inventory/inventory.routes.js';
 import { promotionRouter } from '../modules/promotions/promotion.routes.js';
 import { loyaltyRouter } from '../modules/loyalty/loyalty.routes.js';
+import { reservationsRouter } from '../modules/reservations/reservations.routes.js';
 
 export const apiRouter = Router();
 
@@ -69,6 +70,9 @@ apiRouter.use('/promotions', promotionRouter);
 
 // 16. Loyalty & Customer Rewards module
 apiRouter.use('/loyalty', loyaltyRouter);
+
+// 17. Reservations & Table Bookings module
+apiRouter.use('/reservations', reservationsRouter);
 
 /**
  * Future Business Modules:
