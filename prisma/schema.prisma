@@ -57,6 +57,10 @@ model Restaurant {
   riderSettlements       RiderSettlement[]
   orders                 Order[]
   dailyOrderSequences    DailyOrderSequence[]
+  cashierShifts          CashierShift[]
+  payments               Payment[]
+  paymentRefunds         PaymentRefund[]
+  cashTransactions       CashTransaction[]
 
   @@index([slug])
   @@index([isActive])
@@ -93,6 +97,11 @@ model User {
   createdOrders              Order[]           @relation("CreatedOrders")
   voidedOrders               Order[]           @relation("VoidedOrders")
   assignedOrders             Order[]           @relation("OrderRider")
+  cashierShifts              CashierShift[]    @relation("CashierShifts")
+  closedShifts               CashierShift[]    @relation("ClosedShifts")
+  createdPayments            Payment[]         @relation("CreatedPayments")
+  createdRefunds             PaymentRefund[]   @relation("CreatedRefunds")
+  cashTransactions           CashTransaction[] @relation("CashTransactions")
 
   @@unique([restaurantId, username])
   @@index([restaurantId])
@@ -813,6 +822,7 @@ enum OrderPaymentStatus {
   PARTIALLY_PAID
   PAID
   REFUNDED
+  PARTIALLY_REFUNDED
 }
 
 enum DiscountType {
@@ -890,6 +900,8 @@ model Order {
   createdByUser       User?              @relation("CreatedOrders", fields: [createdById], references: [id], onDelete: SetNull)
   voidedByUser        User?              @relation("VoidedOrders", fields: [voidedById], references: [id], onDelete: SetNull)
   items               OrderItem[]
+  payments            Payment[]
+  refunds             PaymentRefund[]
 
   @@unique([restaurantId, orderCode])
   @@index([restaurantId])
@@ -967,4 +979,168 @@ model DailyOrderSequence {
   @@index([restaurantId])
   @@map("daily_order_sequences")
 }
+
+// -----------------------------------------------------------------------------
+// 24. Payments & Cash Management Models
+// -----------------------------------------------------------------------------
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  DIGITAL_WALLET
+  OTHER
+}
+
+enum PaymentStatus {
+  COMPLETED
+  PARTIALLY_REFUNDED
+  REFUNDED
+  VOIDED
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashTransactionType {
+  OPENING_FLOAT
+  CASH_SALE
+  CASH_REFUND
+  CASH_DROP
+  PAY_IN
+  PAY_OUT
+}
+
+model CashierShift {
+  id                  String            @id @default(uuid())
+  restaurantId        String
+  cashierId           String
+  registerName        String            @default("Main Register")
+  businessDate        String
+  status              ShiftStatus       @default(OPEN)
+  openedAt            DateTime          @default(now())
+  closedAt            DateTime?
+  openingCash         Decimal           @default(0) @db.Decimal(10, 2)
+  cashSales           Decimal           @default(0) @db.Decimal(10, 2)
+  cashRefunds         Decimal           @default(0) @db.Decimal(10, 2)
+  cashDrops           Decimal           @default(0) @db.Decimal(10, 2)
+  cashAdjustments     Decimal           @default(0) @db.Decimal(10, 2)
+  expectedClosingCash Decimal?          @db.Decimal(10, 2)
+  actualClosingCash   Decimal?          @db.Decimal(10, 2)
+  variance            Decimal?          @db.Decimal(10, 2)
+  closedById          String?
+  notes               String?
+  closingNotes        String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Relationships
+  restaurant          Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  cashier             User              @relation("CashierShifts", fields: [cashierId], references: [id], onDelete: Restrict)
+  closedByUser        User?             @relation("ClosedShifts", fields: [closedById], references: [id], onDelete: SetNull)
+  payments            Payment[]
+  refunds             PaymentRefund[]
+  cashTransactions    CashTransaction[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, cashierId, status])
+  @@index([restaurantId, businessDate])
+  @@index([restaurantId, status])
+  @@map("cashier_shifts")
+}
+
+model Payment {
+  id              String            @id @default(uuid())
+  restaurantId    String
+  orderId         String
+  shiftId         String?
+  paymentMethod   PaymentMethod     @default(CASH)
+  amount          Decimal           @db.Decimal(10, 2)
+  amountTendered  Decimal?          @db.Decimal(10, 2)
+  changeAmount    Decimal?          @db.Decimal(10, 2)
+  reference       String?
+  cardLast4       String?
+  cardBrand       String?
+  status          PaymentStatus     @default(COMPLETED)
+  refundedAmount  Decimal           @default(0) @db.Decimal(10, 2)
+  notes           String?
+  createdById     String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  // Relationships
+  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order           Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shift           CashierShift?     @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  createdByUser   User?             @relation("CreatedPayments", fields: [createdById], references: [id], onDelete: SetNull)
+  refunds         PaymentRefund[]
+  cashTransaction CashTransaction?
+
+  @@index([restaurantId])
+  @@index([restaurantId, orderId])
+  @@index([restaurantId, shiftId])
+  @@index([restaurantId, paymentMethod])
+  @@index([restaurantId, status])
+  @@index([restaurantId, reference])
+  @@index([restaurantId, createdAt])
+  @@map("payments")
+}
+
+model PaymentRefund {
+  id                 String           @id @default(uuid())
+  restaurantId       String
+  paymentId          String
+  orderId            String
+  shiftId            String?
+  amount             Decimal          @db.Decimal(10, 2)
+  reason             String
+  refundMethod       PaymentMethod    @default(CASH)
+  reference          String?
+  managerPinVerified Boolean          @default(false)
+  createdById        String?
+  createdAt          DateTime         @default(now())
+
+  // Relationships
+  restaurant         Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payment            Payment          @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  order              Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shift              CashierShift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  createdByUser      User?            @relation("CreatedRefunds", fields: [createdById], references: [id], onDelete: SetNull)
+  cashTransaction    CashTransaction?
+
+  @@index([restaurantId])
+  @@index([restaurantId, paymentId])
+  @@index([restaurantId, orderId])
+  @@index([restaurantId, shiftId])
+  @@index([restaurantId, createdAt])
+  @@map("payment_refunds")
+}
+
+model CashTransaction {
+  id           String              @id @default(uuid())
+  restaurantId String
+  shiftId      String
+  type         CashTransactionType
+  amount       Decimal             @db.Decimal(10, 2)
+  reason       String?
+  paymentId    String?             @unique
+  refundId     String?             @unique
+  createdById  String?
+  createdAt    DateTime            @default(now())
+
+  // Relationships
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  shift        CashierShift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  payment      Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  refund       PaymentRefund?      @relation(fields: [refundId], references: [id], onDelete: SetNull)
+  createdByUser User?              @relation("CashTransactions", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([restaurantId, shiftId])
+  @@index([restaurantId, type])
+  @@index([restaurantId, createdAt])
+  @@map("cash_transactions")
+}
+
 

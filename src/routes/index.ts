@@ -8,6 +8,8 @@ import { zonesRouter, tablesRouter } from '../modules/tables/tables.routes.js';
 import { takeawayRouter } from '../modules/takeaway/takeaway.routes.js';
 import { customerRouter, deliveryRouter } from '../modules/delivery/delivery.routes.js';
 import { ordersRouter } from '../modules/orders/order.routes.js';
+import { paymentsRouter } from '../modules/payments/payment.routes.js';
+import { shiftsRouter } from '../modules/shifts/shift.routes.js';
 
 export const apiRouter = Router();
 
@@ -39,6 +41,10 @@ apiRouter.use('/delivery', deliveryRouter);
 
 // 9. Core Order & Billing module
 apiRouter.use('/orders', ordersRouter);
+
+// 10. Payments & Cash Management modules
+apiRouter.use('/payments', paymentsRouter);
+apiRouter.use('/shifts', shiftsRouter);
 
 /**
  * Future Business Modules:
