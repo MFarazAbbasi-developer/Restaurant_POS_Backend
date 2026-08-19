@@ -33,26 +33,62 @@ describe('Faraz POS - Takeaway Management Module Tests', () => {
     }
     restaurantId = restaurant.id;
 
-    // 2. Login as Owner
-    const ownerLogin = await request(app).post('/api/v1/auth/login').send({
-      username: 'owner_admin',
-      pin: '1234',
+    // 2. Fetch roles
+    const managerRole = await prisma.role.findFirst({
+      where: { restaurantId, name: 'MANAGER' },
     });
-    _ownerAccessToken = ownerLogin.body.data.accessToken;
+    const cashierRole = await prisma.role.findFirst({
+      where: { restaurantId, name: 'CASHIER' },
+    });
 
-    // 3. Login as Manager (has orders.pay_on_pickup)
+    const bcrypt = await import('bcrypt');
+    const pinHashManager = await bcrypt.hash('8877', 10);
+    const pinHashCashier = await bcrypt.hash('8866', 10);
+
+    // Create Suite-Isolated Manager
+    await prisma.user.upsert({
+      where: {
+        restaurantId_username: { restaurantId, username: 'tk_test_manager' },
+      },
+      update: { isActive: true, pinHash: pinHashManager },
+      create: {
+        restaurantId,
+        name: 'Takeaway Test Manager',
+        username: 'tk_test_manager',
+        pinHash: pinHashManager,
+        userRoles: { create: { roleId: managerRole!.id } },
+      },
+    });
+
+    // Create Suite-Isolated Cashier
+    await prisma.user.upsert({
+      where: {
+        restaurantId_username: { restaurantId, username: 'tk_test_cashier' },
+      },
+      update: { isActive: true, pinHash: pinHashCashier },
+      create: {
+        restaurantId,
+        name: 'Takeaway Test Cashier',
+        username: 'tk_test_cashier',
+        pinHash: pinHashCashier,
+        userRoles: { create: { roleId: cashierRole!.id } },
+      },
+    });
+
+    // Login suite users
     const managerLogin = await request(app).post('/api/v1/auth/login').send({
-      username: 'manager_john',
-      pin: '2233',
+      username: 'tk_test_manager',
+      pin: '8877',
     });
     managerAccessToken = managerLogin.body.data.accessToken;
 
-    // 4. Login as Cashier (does NOT have orders.pay_on_pickup)
     const cashierLogin = await request(app).post('/api/v1/auth/login').send({
-      username: 'cashier_sarah',
-      pin: '4321',
+      username: 'tk_test_cashier',
+      pin: '8866',
     });
     cashierAccessToken = cashierLogin.body.data.accessToken;
+
+    _ownerAccessToken = managerAccessToken;
 
     // 5. Create Secondary Restaurant for Tenant Isolation Tests
     const otherRest = await prisma.restaurant.upsert({
@@ -208,7 +244,9 @@ describe('Faraz POS - Takeaway Management Module Tests', () => {
     }
 
     await prisma.user.deleteMany({
-      where: { username: 'takeaway_other_owner' },
+      where: {
+        username: { in: ['takeaway_other_owner', 'tk_test_manager', 'tk_test_cashier'] },
+      },
     });
     await prisma.role.deleteMany({
       where: { restaurantId: otherRestaurantId },

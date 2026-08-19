@@ -52,9 +52,18 @@ const DEFAULT_PERMISSIONS = [
   { key: 'tables.view', description: 'View dining floors, zones, and table status' },
   { key: 'tables.manage', description: 'Create, edit, and organize tables and seating zones' },
 
-  // Users
-  { key: 'users.view', description: 'View staff accounts and roles' },
-  { key: 'users.manage', description: 'Create and manage staff accounts and role assignments' },
+  // Delivery Management
+  { key: 'delivery.view', description: 'View delivery orders, queue, and dispatch details' },
+  { key: 'delivery.create', description: 'Create phone-in, manual WhatsApp, and delivery orders' },
+  { key: 'delivery.update', description: 'Update delivery lifecycle status' },
+  { key: 'delivery.dispatch', description: 'Assign riders and dispatch delivery orders' },
+  { key: 'delivery.rider_settlement', description: 'Reconcile rider cash and close settlements' },
+  { key: 'delivery.cancel', description: 'Cancel active delivery orders' },
+  { key: 'delivery.manage_zones', description: 'Create and configure delivery zones and fees' },
+
+  // Customers
+  { key: 'customer.view', description: 'Search and view customer phone records and addresses' },
+  { key: 'customer.manage', description: 'Create and edit customer records and saved addresses' },
 
   // Settings
   { key: 'settings.view', description: 'View restaurant configurations and settings' },
@@ -99,6 +108,15 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'reports.export',
       'tables.view',
       'tables.manage',
+      'delivery.view',
+      'delivery.create',
+      'delivery.update',
+      'delivery.dispatch',
+      'delivery.rider_settlement',
+      'delivery.cancel',
+      'delivery.manage_zones',
+      'customer.view',
+      'customer.manage',
       'users.view',
       'settings.view',
       'audit.view',
@@ -122,6 +140,14 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'inventory.view',
       'tables.view',
       'tables.manage',
+      'delivery.view',
+      'delivery.create',
+      'delivery.update',
+      'delivery.dispatch',
+      'delivery.rider_settlement',
+      'delivery.cancel',
+      'customer.view',
+      'customer.manage',
     ],
   },
   WAITER: {
@@ -134,7 +160,13 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
   },
   DELIVERY: {
     description: 'Delivery dispatch and drivers updating delivery status and collecting cash',
-    permissions: ['orders.view', 'orders.update', 'payments.create'],
+    permissions: [
+      'orders.view',
+      'orders.update',
+      'delivery.view',
+      'delivery.update',
+      'payments.create',
+    ],
   },
 };
 
@@ -519,7 +551,114 @@ async function main() {
   }
   console.log('✅ Seeded 3 zones and 11 dining tables');
 
-  // 6. Seed Initial Audit Log
+  // 6. Seed Default Delivery Rider Staff User
+  const riderUser = await prisma.user.upsert({
+    where: {
+      restaurantId_username: {
+        restaurantId: restaurant.id,
+        username: 'rider_ali',
+      },
+    },
+    update: {
+      name: 'Ali Rider',
+      phone: '+923001234567',
+      pinHash: hashCredential('5566'),
+      isActive: true,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      name: 'Ali Rider',
+      username: 'rider_ali',
+      phone: '+923001234567',
+      pinHash: hashCredential('5566'),
+      isActive: true,
+    },
+  });
+
+  const deliveryRoleId = roleMap.get('DELIVERY');
+  if (deliveryRoleId) {
+    await prisma.userRole.upsert({
+      where: {
+        userId_roleId: {
+          userId: riderUser.id,
+          roleId: deliveryRoleId,
+        },
+      },
+      update: {},
+      create: {
+        userId: riderUser.id,
+        roleId: deliveryRoleId,
+      },
+    });
+  }
+
+  // 7. Seed Default Delivery Zones
+  console.log('🛵 Seeding default delivery zones...');
+  await prisma.deliveryZone.upsert({
+    where: {
+      restaurantId_name: {
+        restaurantId: restaurant.id,
+        name: 'Standard Delivery (Within 5km)',
+      },
+    },
+    update: {
+      deliveryCharge: 3.5,
+      estimatedMinutes: 30,
+      isActive: true,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      name: 'Standard Delivery (Within 5km)',
+      deliveryCharge: 3.5,
+      estimatedMinutes: 30,
+      isActive: true,
+    },
+  });
+
+  await prisma.deliveryZone.upsert({
+    where: {
+      restaurantId_name: {
+        restaurantId: restaurant.id,
+        name: 'Extended Zone (5km - 10km)',
+      },
+    },
+    update: {
+      deliveryCharge: 6.0,
+      estimatedMinutes: 45,
+      isActive: true,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      name: 'Extended Zone (5km - 10km)',
+      deliveryCharge: 6.0,
+      estimatedMinutes: 45,
+      isActive: true,
+    },
+  });
+
+  await prisma.deliveryZone.upsert({
+    where: {
+      restaurantId_name: {
+        restaurantId: restaurant.id,
+        name: 'Express Priority Delivery',
+      },
+    },
+    update: {
+      deliveryCharge: 8.0,
+      estimatedMinutes: 20,
+      isActive: true,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      name: 'Express Priority Delivery',
+      deliveryCharge: 8.0,
+      estimatedMinutes: 20,
+      isActive: true,
+    },
+  });
+  console.log('✅ Seeded 3 delivery zones and default rider');
+
+  // 8. Seed Initial Audit Log
   await prisma.auditLog.create({
     data: {
       restaurantId: restaurant.id,
@@ -528,7 +667,7 @@ async function main() {
       entityType: 'RESTAURANT',
       entityId: restaurant.id,
       metadata: {
-        event: 'Seed initialization completed with bcrypt credentials and table management',
+        event: 'Seed initialization completed with bcrypt credentials, table management, takeaway, and delivery',
         rolesSeeded: Object.keys(ROLE_PERMISSIONS_MAP),
         permissionCount: DEFAULT_PERMISSIONS.length,
         version: '1.0.0',
@@ -540,6 +679,7 @@ async function main() {
   console.log(`✅ Default Owner User: "${ownerUser.name}" (@${ownerUser.username}, PIN: 1234)`);
   console.log(`✅ Default Manager User: "${managerUser.name}" (@${managerUser.username}, PIN: 2233)`);
   console.log(`✅ Default Cashier User: "${cashierUser.name}" (@${cashierUser.username}, PIN: 4321)`);
+  console.log(`✅ Default Delivery Rider User: "${riderUser.name}" (@${riderUser.username}, PIN: 5566)`);
   console.log('🎉 Faraz POS database seed finished successfully!');
 }
 
