@@ -47,6 +47,10 @@ const DEFAULT_PERMISSIONS = [
   { key: 'reports.view', description: 'View sales and business reports' },
   { key: 'reports.export', description: 'Export reports to CSV/PDF' },
 
+  // Tables & Floors
+  { key: 'tables.view', description: 'View dining floors, zones, and table status' },
+  { key: 'tables.manage', description: 'Create, edit, and organize tables and seating zones' },
+
   // Users
   { key: 'users.view', description: 'View staff accounts and roles' },
   { key: 'users.manage', description: 'Create and manage staff accounts and role assignments' },
@@ -91,6 +95,8 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'inventory.adjust',
       'reports.view',
       'reports.export',
+      'tables.view',
+      'tables.manage',
       'users.view',
       'settings.view',
       'audit.view',
@@ -112,11 +118,13 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'shifts.cash_drop',
       'menu.view',
       'inventory.view',
+      'tables.view',
+      'tables.manage',
     ],
   },
   WAITER: {
     description: 'Floor staff taking table orders and viewing menu items',
-    permissions: ['orders.view', 'orders.create', 'orders.update', 'menu.view'],
+    permissions: ['orders.view', 'orders.create', 'orders.update', 'menu.view', 'tables.view'],
   },
   KITCHEN: {
     description: 'Kitchen display / prep staff tracking and updating food orders',
@@ -362,7 +370,154 @@ async function main() {
     });
   }
 
-  // 5. Seed Initial Audit Log
+  // 5. Seed Default Seating Zones & Tables
+  console.log('🪑 Seeding default seating zones & dining tables...');
+  const mainFloor = await prisma.zone.upsert({
+    where: {
+      restaurantId_name: {
+        restaurantId: restaurant.id,
+        name: 'Ground Floor',
+      },
+    },
+    update: {
+      description: 'Main dining hall and central seating area',
+      sortOrder: 1,
+      isActive: true,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      name: 'Ground Floor',
+      description: 'Main dining hall and central seating area',
+      sortOrder: 1,
+      isActive: true,
+    },
+  });
+
+  const familyHall = await prisma.zone.upsert({
+    where: {
+      restaurantId_name: {
+        restaurantId: restaurant.id,
+        name: 'Family Hall',
+      },
+    },
+    update: {
+      description: 'Private and family dining section',
+      sortOrder: 2,
+      isActive: true,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      name: 'Family Hall',
+      description: 'Private and family dining section',
+      sortOrder: 2,
+      isActive: true,
+    },
+  });
+
+  const outdoorPatio = await prisma.zone.upsert({
+    where: {
+      restaurantId_name: {
+        restaurantId: restaurant.id,
+        name: 'Outdoor Patio',
+      },
+    },
+    update: {
+      description: 'Open air terrace seating with garden view',
+      sortOrder: 3,
+      isActive: true,
+    },
+    create: {
+      restaurantId: restaurant.id,
+      name: 'Outdoor Patio',
+      description: 'Open air terrace seating with garden view',
+      sortOrder: 3,
+      isActive: true,
+    },
+  });
+
+  // Seed Tables for Main Floor
+  for (let i = 1; i <= 5; i++) {
+    const tableName = `T-${i < 10 ? '0' + i : i}`;
+    await prisma.restaurantTable.upsert({
+      where: {
+        restaurantId_name: {
+          restaurantId: restaurant.id,
+          name: tableName,
+        },
+      },
+      update: {
+        zoneId: mainFloor.id,
+        capacity: i <= 2 ? 2 : 4,
+        sortOrder: i,
+        isActive: true,
+      },
+      create: {
+        restaurantId: restaurant.id,
+        zoneId: mainFloor.id,
+        name: tableName,
+        capacity: i <= 2 ? 2 : 4,
+        sortOrder: i,
+        isActive: true,
+      },
+    });
+  }
+
+  // Seed Tables for Family Hall
+  for (let i = 1; i <= 3; i++) {
+    const tableName = `F-${i < 10 ? '0' + i : i}`;
+    await prisma.restaurantTable.upsert({
+      where: {
+        restaurantId_name: {
+          restaurantId: restaurant.id,
+          name: tableName,
+        },
+      },
+      update: {
+        zoneId: familyHall.id,
+        capacity: 6,
+        sortOrder: i,
+        isActive: true,
+      },
+      create: {
+        restaurantId: restaurant.id,
+        zoneId: familyHall.id,
+        name: tableName,
+        capacity: 6,
+        sortOrder: i,
+        isActive: true,
+      },
+    });
+  }
+
+  // Seed Tables for Outdoor Patio
+  for (let i = 1; i <= 3; i++) {
+    const tableName = `P-${i < 10 ? '0' + i : i}`;
+    await prisma.restaurantTable.upsert({
+      where: {
+        restaurantId_name: {
+          restaurantId: restaurant.id,
+          name: tableName,
+        },
+      },
+      update: {
+        zoneId: outdoorPatio.id,
+        capacity: 4,
+        sortOrder: i,
+        isActive: true,
+      },
+      create: {
+        restaurantId: restaurant.id,
+        zoneId: outdoorPatio.id,
+        name: tableName,
+        capacity: 4,
+        sortOrder: i,
+        isActive: true,
+      },
+    });
+  }
+  console.log('✅ Seeded 3 zones and 11 dining tables');
+
+  // 6. Seed Initial Audit Log
   await prisma.auditLog.create({
     data: {
       restaurantId: restaurant.id,
@@ -371,7 +526,7 @@ async function main() {
       entityType: 'RESTAURANT',
       entityId: restaurant.id,
       metadata: {
-        event: 'Seed initialization completed with bcrypt credentials',
+        event: 'Seed initialization completed with bcrypt credentials and table management',
         rolesSeeded: Object.keys(ROLE_PERMISSIONS_MAP),
         permissionCount: DEFAULT_PERMISSIONS.length,
         version: '1.0.0',
