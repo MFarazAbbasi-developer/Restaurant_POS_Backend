@@ -24,24 +24,20 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
 
   beforeAll(async () => {
     // 1. Create Suite-Isolated Restaurant A
-    const restaurantA = await prisma.restaurant.upsert({
-      where: { slug: 'faraz-kitchen-suite' },
-      update: {},
-      create: {
+    const restaurantA = await prisma.restaurant.create({
+      data: {
         name: 'Faraz Kitchen Flagship',
-        slug: 'faraz-kitchen-suite',
+        slug: 'faraz-kitchen-suite-' + Date.now(),
         currency: 'USD',
       },
     });
     restaurantAId = restaurantA.id;
 
     // 2. Create Restaurant B for isolation tests
-    const restaurantB = await prisma.restaurant.upsert({
-      where: { slug: 'faraz-test-branch-kds' },
-      update: {},
-      create: {
+    const restaurantB = await prisma.restaurant.create({
+      data: {
         name: 'Faraz Branch KDS Test',
-        slug: 'faraz-test-branch-kds',
+        slug: 'faraz-branch-kds-' + Date.now(),
         currency: 'PKR',
       },
     });
@@ -404,8 +400,12 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
         .set('Authorization', `Bearer ${kitchenStaffAToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.data.tickets.every((t: { orderType: string }) => t.orderType === 'TAKEAWAY')).toBe(true);
-      expect(res.body.data.tickets.some((t: { id: string }) => t.id === takeawayOrderId)).toBe(true);
+      expect(
+        res.body.data.tickets.every((t: { orderType: string }) => t.orderType === 'TAKEAWAY'),
+      ).toBe(true);
+      expect(res.body.data.tickets.some((t: { id: string }) => t.id === takeawayOrderId)).toBe(
+        true,
+      );
     });
 
     it('should filter kitchen queue by categoryId', async () => {
@@ -549,7 +549,11 @@ describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', (
 
       expect(res.status).toBe(200);
       expect(res.body.data.ticket.status).toBe('READY');
-      expect(res.body.data.ticket.items.every((i: { kitchenStatus: string }) => i.kitchenStatus === 'READY')).toBe(true);
+      expect(
+        res.body.data.ticket.items.every(
+          (i: { kitchenStatus: string }) => i.kitchenStatus === 'READY',
+        ),
+      ).toBe(true);
     });
 
     it('should recall a single item and revert order back to PREPARING', async () => {

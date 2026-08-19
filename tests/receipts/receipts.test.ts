@@ -30,24 +30,10 @@ describe('Faraz POS - Receipt & Printing Management Module Tests', () => {
 
   beforeAll(async () => {
     // 1. Create Dedicated Suite-Isolated Restaurant A
-    const restaurantA = await prisma.restaurant.upsert({
-      where: { slug: 'faraz-receipts-suite' },
-      update: {
+    const restaurantA = await prisma.restaurant.create({
+      data: {
         name: 'Faraz Flagship Bistro',
-        legalName: 'Faraz Flagship Bistro Pvt. Ltd.',
-        phone: '+92 51 1122334',
-        address: 'Plot 14-B, Blue Area, Sector F-6, Islamabad',
-        taxNumber: 'NTN-99887766-1',
-        receiptHeader: 'Welcome to the Premier Dining Experience',
-        receiptFooter: 'Feedback: feedback@farazpos.com | WiFi: FarazGuest',
-        taxRate: 16.0,
-        taxInclusive: false,
-        serviceChargeRate: 5.0,
-        serviceChargeEnabled: true,
-      },
-      create: {
-        name: 'Faraz Flagship Bistro',
-        slug: 'faraz-receipts-suite',
+        slug: 'faraz-receipts-suite-' + Date.now(),
         legalName: 'Faraz Flagship Bistro Pvt. Ltd.',
         phone: '+92 51 1122334',
         address: 'Plot 14-B, Blue Area, Sector F-6, Islamabad',
@@ -64,12 +50,10 @@ describe('Faraz POS - Receipt & Printing Management Module Tests', () => {
     restaurantAId = restaurantA.id;
 
     // 2. Create Restaurant B for isolation tests
-    const restaurantB = await prisma.restaurant.upsert({
-      where: { slug: 'faraz-test-branch-receipts' },
-      update: {},
-      create: {
+    const restaurantB = await prisma.restaurant.create({
+      data: {
         name: 'Faraz Branch Receipts Test',
-        slug: 'faraz-test-branch-receipts',
+        slug: 'faraz-branch-receipts-' + Date.now(),
         currency: 'PKR',
       },
     });
@@ -438,7 +422,9 @@ describe('Faraz POS - Receipt & Printing Management Module Tests', () => {
 
       // Items & Modifiers
       expect(receipt.items.length).toBe(2);
-      const burgerItem = receipt.items.find((i: { itemName: string }) => i.itemName === 'Angus Gourmet Burger');
+      const burgerItem = receipt.items.find(
+        (i: { itemName: string }) => i.itemName === 'Angus Gourmet Burger',
+      );
       expect(burgerItem).toBeDefined();
       expect(burgerItem.quantity).toBe(2);
       expect(burgerItem.modifiers.length).toBe(1);
@@ -529,7 +515,9 @@ describe('Faraz POS - Receipt & Printing Management Module Tests', () => {
       expect(ticket.metadata.tableName).toBe('T-01');
       expect(ticket.items.length).toBe(2);
 
-      const burger = ticket.items.find((i: { itemName: string }) => i.itemName === 'Angus Gourmet Burger');
+      const burger = ticket.items.find(
+        (i: { itemName: string }) => i.itemName === 'Angus Gourmet Burger',
+      );
       expect(burger.specialInstructions).toContain('Well done');
       expect(burger.modifiers[0].modifierOptionName).toBe('Aged Cheddar Slice');
 
@@ -540,7 +528,9 @@ describe('Faraz POS - Receipt & Printing Management Module Tests', () => {
 
     it('should generate station-filtered KOT ticket', async () => {
       const res = await request(app)
-        .get(`/api/v1/receipts/orders/${completedDineInOrderId}/kitchen?stationId=${stationGrillId}`)
+        .get(
+          `/api/v1/receipts/orders/${completedDineInOrderId}/kitchen?stationId=${stationGrillId}`,
+        )
         .set('Authorization', `Bearer ${waiterAToken}`);
 
       expect(res.status).toBe(200);
@@ -633,7 +623,9 @@ describe('Faraz POS - Receipt & Printing Management Module Tests', () => {
   // ---------------------------------------------------------------------------
   describe('5. Security, RBAC & Multi-Tenant Isolation', () => {
     it('should reject unauthenticated request with HTTP 401', async () => {
-      const res = await request(app).get(`/api/v1/receipts/orders/${completedDineInOrderId}/customer`);
+      const res = await request(app).get(
+        `/api/v1/receipts/orders/${completedDineInOrderId}/customer`,
+      );
       expect(res.status).toBe(401);
     });
 

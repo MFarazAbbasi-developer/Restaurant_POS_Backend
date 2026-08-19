@@ -12,6 +12,7 @@ import { paymentsRouter } from '../modules/payments/payment.routes.js';
 import { shiftsRouter } from '../modules/shifts/shift.routes.js';
 import { kitchenRouter } from '../modules/kitchen/kitchen.routes.js';
 import { receiptsRouter } from '../modules/receipts/receipt.routes.js';
+import { reportsRouter } from '../modules/reports/report.routes.js';
 
 export const apiRouter = Router();
 
@@ -53,6 +54,9 @@ apiRouter.use('/kitchen', kitchenRouter);
 
 // 12. Receipt & Printing Management module
 apiRouter.use('/receipts', receiptsRouter);
+
+// 13. Reporting & Analytics module
+apiRouter.use('/reports', reportsRouter);
 
 /**
  * Future Business Modules:
