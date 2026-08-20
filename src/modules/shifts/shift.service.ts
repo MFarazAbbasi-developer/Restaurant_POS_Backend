@@ -56,6 +56,10 @@ export class ShiftService {
         shift.cashAdjustments instanceof Prisma.Decimal
           ? shift.cashAdjustments.toNumber()
           : Number(shift.cashAdjustments || 0),
+      cashExpenses:
+        shift.cashExpenses instanceof Prisma.Decimal
+          ? shift.cashExpenses.toNumber()
+          : Number(shift.cashExpenses || 0),
       expectedClosingCash:
         shift.expectedClosingCash instanceof Prisma.Decimal
           ? shift.expectedClosingCash.toNumber()
@@ -204,7 +208,8 @@ export class ShiftService {
       .add(shift.cashSales)
       .minus(shift.cashRefunds)
       .minus(shift.cashDrops)
-      .add(shift.cashAdjustments);
+      .add(shift.cashAdjustments)
+      .minus(shift.cashExpenses);
 
     return this.serializeShift({
       ...shift,
@@ -362,7 +367,8 @@ export class ShiftService {
       .add(shift.cashSales)
       .minus(shift.cashRefunds)
       .minus(shift.cashDrops)
-      .add(shift.cashAdjustments);
+      .add(shift.cashAdjustments)
+      .minus(shift.cashExpenses);
 
     if (input.type === 'PAY_OUT' && adjustmentAmount.greaterThan(currentDrawerCash)) {
       throw new BadRequestError(
@@ -457,7 +463,8 @@ export class ShiftService {
       .add(shift.cashSales)
       .minus(shift.cashRefunds)
       .minus(shift.cashDrops)
-      .add(shift.cashAdjustments);
+      .add(shift.cashAdjustments)
+      .minus(shift.cashExpenses);
 
     const actualClosingCash = new Prisma.Decimal(input.actualClosingCash);
     const variance = actualClosingCash.minus(expectedClosingCash);
@@ -530,6 +537,7 @@ export class ShiftService {
       cashRefunds: number;
       cashDrops: number;
       cashAdjustments: number;
+      cashExpenses: number;
       expectedClosingCash: number;
       actualClosingCash: number | null;
       variance: number | null;
@@ -560,7 +568,8 @@ export class ShiftService {
       .add(shift.cashSales)
       .minus(shift.cashRefunds)
       .minus(shift.cashDrops)
-      .add(shift.cashAdjustments);
+      .add(shift.cashAdjustments)
+      .minus(shift.cashExpenses);
 
     const paymentsByMethod: Record<string, { count: number; totalAmount: number }> = {};
     let totalSales = new Prisma.Decimal(0);
@@ -600,6 +609,7 @@ export class ShiftService {
         cashRefunds: shift.cashRefunds.toNumber(),
         cashDrops: shift.cashDrops.toNumber(),
         cashAdjustments: shift.cashAdjustments.toNumber(),
+        cashExpenses: shift.cashExpenses.toNumber(),
         expectedClosingCash: expectedCash.toNumber(),
         actualClosingCash: shift.actualClosingCash ? shift.actualClosingCash.toNumber() : null,
         variance: shift.variance ? shift.variance.toNumber() : null,

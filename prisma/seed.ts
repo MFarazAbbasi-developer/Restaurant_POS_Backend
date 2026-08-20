@@ -46,10 +46,17 @@ const DEFAULT_PERMISSIONS = [
   { key: 'inventory.receive', description: 'Receive supplier purchases and stock deliveries' },
   { key: 'inventory.transfer', description: 'Transfer stock between locations' },
   { key: 'inventory.waste', description: 'Record spoiled, expired, or wasted inventory' },
+  // Purchasing & Suppliers
   { key: 'purchasing.view', description: 'View purchase orders, supplier profiles, receiving history, and purchase reports' },
   { key: 'purchasing.manage', description: 'Create and modify purchase orders and supplier catalog terms' },
   { key: 'purchasing.receive', description: 'Receive goods, log deliveries, and process supplier returns' },
   { key: 'suppliers.manage', description: 'Create, edit, and deactivate supplier profiles' },
+
+  // Expenses & Expense Management
+  { key: 'expenses.view', description: 'View operating expenses, categories, and expense analytics' },
+  { key: 'expenses.create', description: 'Record new operational expenses and petty cash disbursements' },
+  { key: 'expenses.manage', description: 'Create, edit, and organize expense categories and edit expense records' },
+  { key: 'expenses.void', description: 'Void or reverse expense records with manager authorization' },
 
   // Reports
   { key: 'reports.view', description: 'View sales and business reports' },
@@ -150,6 +157,10 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'purchasing.manage',
       'purchasing.receive',
       'suppliers.manage',
+      'expenses.view',
+      'expenses.create',
+      'expenses.manage',
+      'expenses.void',
       'promotions.view',
       'promotions.manage',
       'promotions.apply',
@@ -192,6 +203,8 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'shifts.open',
       'shifts.close',
       'shifts.cash_drop',
+      'expenses.view',
+      'expenses.create',
       'kitchen.view',
       'receipts.view',
       'receipts.reprint',
@@ -722,9 +735,36 @@ async function main() {
       isActive: true,
     },
   });
-  console.log('✅ Seeded 3 delivery zones and default rider');
+  // 8. Seed Default Expense Categories
+  const DEFAULT_EXPENSE_CATEGORIES = [
+    { name: 'Kitchen & Raw Materials', description: 'Emergency ingredient purchases and kitchen supplies' },
+    { name: 'Utilities & Bills', description: 'Electricity, gas, water, internet, and generator fuel' },
+    { name: 'Petty Cash & Maintenance', description: 'Repairs, hardware maintenance, and daily petty cash' },
+    { name: 'Staff Meals & Welfare', description: 'Staff meals, tea, and employee welfare' },
+    { name: 'Packaging & Disposables', description: 'Takeaway boxes, bags, cutlery, and napkins' },
+    { name: 'Cleaning & Sanitation', description: 'Detergents, cleaning tools, and pest control' },
+  ];
 
-  // 8. Seed Initial Audit Log
+  for (const cat of DEFAULT_EXPENSE_CATEGORIES) {
+    await prisma.expenseCategory.upsert({
+      where: {
+        restaurantId_name: {
+          restaurantId: restaurant.id,
+          name: cat.name,
+        },
+      },
+      update: { description: cat.description, isActive: true },
+      create: {
+        restaurantId: restaurant.id,
+        name: cat.name,
+        description: cat.description,
+        isActive: true,
+      },
+    });
+  }
+  console.log('✅ Seeded 6 default operational expense categories');
+
+  // 9. Seed Initial Audit Log
   await prisma.auditLog.create({
     data: {
       restaurantId: restaurant.id,

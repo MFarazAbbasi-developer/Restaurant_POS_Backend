@@ -20,6 +20,7 @@ import { promotionsPaths } from './paths/promotions.docs.js';
 import { loyaltyPaths } from './paths/loyalty.docs.js';
 import { reservationsPaths } from './paths/reservations.docs.js';
 import { purchasingPaths } from './paths/purchasing.docs.js';
+import { expensesPaths } from './paths/expenses.docs.js';
 
 export const openApiSpecification = {
   openapi: '3.0.3',
@@ -135,6 +136,11 @@ Welcome to the Faraz POS REST API documentation.
       description:
         'Vendor/supplier profiles, purchase orders, partial/full receiving, price history, supplier returns, and purchasing analytics',
     },
+    {
+      name: 'Expenses & Expense Management',
+      description:
+        'Operating expense categories, cash/petty cash disbursements, cashier drawer integration, voiding, and expense analytics',
+    },
   ],
   paths: {
     ...healthPaths,
@@ -156,6 +162,7 @@ Welcome to the Faraz POS REST API documentation.
     ...loyaltyPaths,
     ...reservationsPaths,
     ...purchasingPaths,
+    ...expensesPaths,
   },
   components: {
     securitySchemes,

@@ -18,6 +18,7 @@ import { promotionRouter } from '../modules/promotions/promotion.routes.js';
 import { loyaltyRouter } from '../modules/loyalty/loyalty.routes.js';
 import { reservationsRouter } from '../modules/reservations/reservations.routes.js';
 import { purchasingRouter } from '../modules/purchasing/purchasing.routes.js';
+import { expensesRouter } from '../modules/expenses/expenses.routes.js';
 
 export const apiRouter = Router();
 
@@ -77,6 +78,9 @@ apiRouter.use('/reservations', reservationsRouter);
 
 // 18. Purchasing & Supplier Management module
 apiRouter.use('/purchasing', purchasingRouter);
+
+// 19. Expenses & Expense Management module
+apiRouter.use('/expenses', expensesRouter);
 
 /**
  * Future Business Modules:
