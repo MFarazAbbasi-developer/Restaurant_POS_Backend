@@ -83,6 +83,8 @@ describe('Faraz POS - Inventory & Stock Management Module Tests', () => {
     const managerPermKeys = [
       'orders.view',
       'orders.create',
+      'orders.update',
+      'orders.void',
       'inventory.view',
       'inventory.manage',
       'inventory.adjust',
@@ -619,6 +621,154 @@ describe('Faraz POS - Inventory & Stock Management Module Tests', () => {
       expect(saleMov.type).toBe('SALE_CONSUMPTION');
       expect(saleMov.quantityChange).toBe(-0.6);
       expect(saleMov.balanceAfter).toBe(69.4);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 6b. Automatic Stock Reversal on Order / Item Void
+  // ---------------------------------------------------------------------------
+  describe('6b. Automatic Stock Reversal on Order / Item Void', () => {
+    it('should automatically restore stock when a PENDING item is voided', async () => {
+      // 1. Create Order with 1x Classic Burger (Deducts 0.150kg Beef, 1 Bun, 0.050kg Cheese)
+      // Current stock before order: Beef 69.4, Bun 98, Cheese 29.85
+      const orderRes = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${cashierAToken}`)
+        .send({
+          orderType: 'TAKEAWAY',
+          items: [{ menuItemId: menuBurgerId, quantity: 1 }],
+        });
+
+      expect(orderRes.status).toBe(201);
+      const order = orderRes.body.data.order;
+      const orderId = order.id;
+      const itemId = order.items[0].id;
+
+      // Stock deducted: Beef: 69.4 - 0.150 = 69.25, Bun: 98 - 1 = 97, Cheese: 29.85 - 0.05 = 29.80
+      const beefAfterOrder = await request(app)
+        .get(`/api/v1/inventory/items/${itemBeefId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(beefAfterOrder.body.data.item.currentStock).toBe(69.25);
+
+      // 2. Void the pending item
+      const voidRes = await request(app)
+        .post(`/api/v1/orders/${orderId}/items/${itemId}/void`)
+        .set('Authorization', `Bearer ${managerAToken}`)
+        .send({ voidReason: 'Customer changed mind before kitchen prep' });
+
+      expect(voidRes.status).toBe(200);
+
+      // 3. Verify Stock is Restored: Beef back to 69.4, Bun back to 98, Cheese back to 29.85
+      const beefAfterVoid = await request(app)
+        .get(`/api/v1/inventory/items/${itemBeefId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(beefAfterVoid.body.data.item.currentStock).toBe(69.4);
+
+      const bunAfterVoid = await request(app)
+        .get(`/api/v1/inventory/items/${itemBunId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(bunAfterVoid.body.data.item.currentStock).toBe(98.0);
+
+      const cheeseAfterVoid = await request(app)
+        .get(`/api/v1/inventory/items/${itemCheeseId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(cheeseAfterVoid.body.data.item.currentStock).toBe(29.85);
+
+      // 4. Verify ORDER_VOID_RETURN movement in Ledger
+      const ledgerRes = await request(app)
+        .get(`/api/v1/inventory/ledger?inventoryItemId=${itemBeefId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+
+      const voidMov = ledgerRes.body.data.movements.find(
+        (m: { type: string; referenceId: string }) =>
+          m.type === 'ORDER_VOID_RETURN' && m.referenceId === itemId,
+      );
+      expect(voidMov).toBeDefined();
+      expect(voidMov.quantityChange).toBe(0.15);
+      expect(voidMov.balanceAfter).toBe(69.4);
+    });
+
+    it('should NOT restore stock when voiding an item that is already PREPARING or READY in kitchen', async () => {
+      // 1. Create Order with 1x Classic Burger
+      const orderRes = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${cashierAToken}`)
+        .send({
+          orderType: 'DINE_IN',
+          items: [{ menuItemId: menuBurgerId, quantity: 1 }],
+        });
+
+      const order = orderRes.body.data.order;
+      const orderId = order.id;
+      const itemId = order.items[0].id;
+
+      // Current Beef: 69.4 - 0.150 = 69.25
+      const beefAfterOrder = await request(app)
+        .get(`/api/v1/inventory/items/${itemBeefId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(beefAfterOrder.body.data.item.currentStock).toBe(69.25);
+
+      // 2. Kitchen starts cooking (status becomes PREPARING)
+      await prisma.orderItem.update({
+        where: { id: itemId },
+        data: { kitchenStatus: 'PREPARING' },
+      });
+
+      // 3. Void the item
+      const voidRes = await request(app)
+        .post(`/api/v1/orders/${orderId}/items/${itemId}/void`)
+        .set('Authorization', `Bearer ${managerAToken}`)
+        .send({ voidReason: 'Food burnt or dropped during cooking' });
+
+      expect(voidRes.status).toBe(200);
+
+      // 4. Verify stock is NOT restored because ingredients were already physically used/wasted
+      const beefAfterVoid = await request(app)
+        .get(`/api/v1/inventory/items/${itemBeefId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(beefAfterVoid.body.data.item.currentStock).toBe(69.25); // Unchanged at 69.25
+
+      // Re-adjust beef stock back to 69.4 for subsequent test consistency
+      await prisma.inventoryItem.update({
+        where: { id: itemBeefId },
+        data: { currentStock: 69.4 },
+      });
+    });
+
+    it('should automatically restore stock for all pending items when an entire order is voided', async () => {
+      // 1. Create Order with 2 items
+      const orderRes = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${cashierAToken}`)
+        .send({
+          orderType: 'TAKEAWAY',
+          items: [
+            { menuItemId: menuBurgerId, quantity: 2 }, // 2x 0.150 = 0.300kg Beef
+          ],
+        });
+
+      const order = orderRes.body.data.order;
+      const orderId = order.id;
+
+      // Beef: 69.4 - 0.300 = 69.10
+      const beefAfterOrder = await request(app)
+        .get(`/api/v1/inventory/items/${itemBeefId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(beefAfterOrder.body.data.item.currentStock).toBe(69.1);
+
+      // 2. Void entire order
+      const voidRes = await request(app)
+        .post(`/api/v1/orders/${orderId}/void`)
+        .set('Authorization', `Bearer ${managerAToken}`)
+        .send({ voidReason: 'Customer canceled whole takeaway before prep' });
+
+      expect(voidRes.status).toBe(200);
+
+      // 3. Verify stock is fully restored
+      const beefAfterVoid = await request(app)
+        .get(`/api/v1/inventory/items/${itemBeefId}`)
+        .set('Authorization', `Bearer ${managerAToken}`);
+      expect(beefAfterVoid.body.data.item.currentStock).toBe(69.4);
     });
   });
 

@@ -1042,6 +1042,15 @@ export class OrderService {
       voidedItemId: itemId,
     });
 
+    // Automatic Inventory Reversal for reversible pending items
+    await InventoryService.reverseStockForVoidedItem(
+      restaurantId,
+      order.id,
+      itemId,
+      actor?.id,
+      voidReason,
+    );
+
     return this.serializeOrder(updatedOrder);
   }
 
@@ -1430,6 +1439,14 @@ export class OrderService {
       orderCode: voidedOrder.orderCode,
       voidReason,
     });
+
+    // Automatic Inventory Reversal for all eligible pending items
+    await InventoryService.reverseStockForVoidedOrder(
+      restaurantId,
+      order.id,
+      actor?.id,
+      voidReason,
+    );
 
     return this.serializeOrder(voidedOrder);
   }

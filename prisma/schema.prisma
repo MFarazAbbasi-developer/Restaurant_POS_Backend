@@ -79,6 +79,8 @@ model Restaurant {
   loyaltyTransactions    LoyaltyTransaction[]
   reservations           Reservation[]
   purchaseReturns        PurchaseReturn[]
+  expenseCategories      ExpenseCategory[]
+  expenses               Expense[]
 
   @@index([slug])
   @@index([isActive])
@@ -128,6 +130,8 @@ model User {
   createdLoyaltyTransactions LoyaltyTransaction[] @relation("CreatedLoyaltyTransactions")
   createdReservations        Reservation[]     @relation("CreatedReservations")
   createdPurchaseReturns     PurchaseReturn[]  @relation("CreatedPurchaseReturns")
+  createdExpenses            Expense[]         @relation("CreatedExpenses")
+  voidedExpenses             Expense[]         @relation("VoidedExpenses")
 
   @@unique([restaurantId, username])
   @@index([restaurantId])
@@ -1069,6 +1073,7 @@ enum CashTransactionType {
   CASH_DROP
   PAY_IN
   PAY_OUT
+  EXPENSE
 }
 
 model CashierShift {
@@ -1091,6 +1096,7 @@ model CashierShift {
   closedById          String?
   notes               String?
   closingNotes        String?
+  cashExpenses        Decimal           @default(0) @db.Decimal(10, 2)
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -1101,6 +1107,7 @@ model CashierShift {
   payments            Payment[]
   refunds             PaymentRefund[]
   cashTransactions    CashTransaction[]
+  expenses            Expense[]
 
   @@index([restaurantId])
   @@index([restaurantId, cashierId, status])
@@ -1185,6 +1192,7 @@ model CashTransaction {
   reason       String?
   paymentId    String?             @unique
   refundId     String?             @unique
+  expenseId    String?             @unique
   createdById  String?
   createdAt    DateTime            @default(now())
 
@@ -1193,6 +1201,7 @@ model CashTransaction {
   shift        CashierShift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   payment      Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   refund       PaymentRefund?      @relation(fields: [refundId], references: [id], onDelete: SetNull)
+  expense      Expense?            @relation(fields: [expenseId], references: [id], onDelete: SetNull)
   createdByUser User?              @relation("CashTransactions", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
@@ -1302,6 +1311,7 @@ model Supplier {
   inventoryItems  InventoryItem[]
   purchaseOrders  PurchaseOrder[]
   purchaseReturns PurchaseReturn[]
+  expenses        Expense[]
 
   @@unique([restaurantId, name])
   @@index([restaurantId])
@@ -1929,6 +1939,79 @@ model Reservation {
   @@index([restaurantId, startTime, endTime])
   @@map("reservations")
 }
+
+enum ExpenseStatus {
+  RECORDED
+  VOIDED
+}
+
+// -----------------------------------------------------------------------------
+// 41. Expense & Cash Drawer Management
+// -----------------------------------------------------------------------------
+model ExpenseCategory {
+  id           String     @id @default(uuid())
+  restaurantId String
+  name         String
+  description  String?
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relationships
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  expenses     Expense[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id              String           @id @default(uuid())
+  restaurantId    String
+  categoryId      String
+  supplierId      String?
+  shiftId         String?
+  expenseNumber   String
+  amount          Decimal          @db.Decimal(10, 2)
+  paymentMethod   PaymentMethod    @default(CASH)
+  status          ExpenseStatus    @default(RECORDED)
+  date            DateTime         @default(now())
+  businessDate    String
+  description     String
+  reference       String?
+  receiptUrl      String?
+  notes           String?
+  voidReason      String?
+  voidedAt        DateTime?
+  voidedById      String?
+  createdById     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relationships
+  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category        ExpenseCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  supplier        Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  shift           CashierShift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  cashTransaction CashTransaction?
+  createdByUser   User?            @relation("CreatedExpenses", fields: [createdById], references: [id], onDelete: SetNull)
+  voidedByUser    User?            @relation("VoidedExpenses", fields: [voidedById], references: [id], onDelete: SetNull)
+
+  @@unique([restaurantId, expenseNumber])
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+  @@index([restaurantId, businessDate])
+  @@index([restaurantId, date])
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, categoryId])
+  @@index([restaurantId, paymentMethod])
+  @@index([restaurantId, shiftId])
+  @@index([restaurantId, supplierId])
+  @@map("expenses")
+}
+
 
 
 

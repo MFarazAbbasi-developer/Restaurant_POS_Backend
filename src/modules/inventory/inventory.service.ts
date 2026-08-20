@@ -1629,6 +1629,233 @@ export class InventoryService {
   }
 
   // ---------------------------------------------------------------------------
+  // 9b. Automatic Inventory Reversal on Order Item / Order Void
+  // ---------------------------------------------------------------------------
+  public static async reverseStockForVoidedItem(
+    restaurantId: string,
+    orderId: string,
+    orderItemId: string,
+    actorId?: string,
+    voidReason?: string,
+  ) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: {
+        items: {
+          where: { id: orderItemId },
+          include: {
+            modifiers: true,
+          },
+        },
+      },
+    });
+
+    if (!order || !order.items[0]) return;
+    const item = order.items[0];
+
+    // Business rule: Do NOT return stock for items that are already preparing, ready, or served
+    if (item.kitchenStatus !== 'PENDING') {
+      return;
+    }
+
+    // Check if stock was ever consumed for this order
+    const consumptionMovement = await prisma.stockMovement.findFirst({
+      where: {
+        restaurantId,
+        referenceType: 'ORDER',
+        referenceId: order.id,
+        type: 'SALE_CONSUMPTION',
+      },
+    });
+
+    if (!consumptionMovement) {
+      return; // No stock was consumed
+    }
+
+    // Check if reverse movement was already recorded for this item to prevent duplicates
+    const existingReversal = await prisma.stockMovement.findFirst({
+      where: {
+        restaurantId,
+        referenceType: 'ORDER_ITEM',
+        referenceId: item.id,
+        type: 'ORDER_VOID_RETURN',
+      },
+    });
+
+    if (existingReversal) {
+      return; // Already reversed
+    }
+
+    const menuItemIds = [item.menuItemId];
+    const variantIds = item.variantId ? [item.variantId] : [];
+    const modifierIds = item.modifiers.map((m) => m.modifierId);
+
+    const recipes = await prisma.menuItemIngredient.findMany({
+      where: {
+        restaurantId,
+        OR: [
+          { menuItemId: { in: menuItemIds } },
+          { variantId: { in: variantIds } },
+          { modifierId: { in: modifierIds } },
+        ],
+      },
+      include: {
+        inventoryItem: true,
+      },
+    });
+
+    if (recipes.length === 0) return;
+
+    const restorationsMap = new Map<
+      string,
+      {
+        inventoryItemId: string;
+        totalQuantity: Prisma.Decimal;
+        unitCost: Prisma.Decimal;
+      }
+    >();
+
+    // 1. Match Menu Item or Variant recipe
+    const matchingItemRecipes = recipes.filter(
+      (r) =>
+        (item.variantId && r.variantId === item.variantId) ||
+        (!item.variantId && r.menuItemId === item.menuItemId),
+    );
+
+    for (const rec of matchingItemRecipes) {
+      const itemQty = new Prisma.Decimal(item.quantity);
+      const portionQty = rec.quantity;
+      const wasteMultiplier = new Prisma.Decimal(1).add(rec.wastePercentage.div(100));
+      const restoreQty = itemQty.mul(portionQty).mul(wasteMultiplier);
+
+      const existing = restorationsMap.get(rec.inventoryItemId);
+      if (!existing) {
+        restorationsMap.set(rec.inventoryItemId, {
+          inventoryItemId: rec.inventoryItemId,
+          totalQuantity: restoreQty,
+          unitCost: rec.inventoryItem.costPerUnit,
+        });
+      } else {
+        existing.totalQuantity = existing.totalQuantity.add(restoreQty);
+      }
+    }
+
+    // 2. Match Modifiers recipe
+    for (const mod of item.modifiers) {
+      const matchingModRecipes = recipes.filter((r) => r.modifierId === mod.modifierId);
+      for (const rec of matchingModRecipes) {
+        const modQty = new Prisma.Decimal(item.quantity);
+        const portionQty = rec.quantity;
+        const wasteMultiplier = new Prisma.Decimal(1).add(rec.wastePercentage.div(100));
+        const restoreQty = modQty.mul(portionQty).mul(wasteMultiplier);
+
+        const existing = restorationsMap.get(rec.inventoryItemId);
+        if (!existing) {
+          restorationsMap.set(rec.inventoryItemId, {
+            inventoryItemId: rec.inventoryItemId,
+            totalQuantity: restoreQty,
+            unitCost: rec.inventoryItem.costPerUnit,
+          });
+        } else {
+          existing.totalQuantity = existing.totalQuantity.add(restoreQty);
+        }
+      }
+    }
+
+    if (restorationsMap.size === 0) return;
+
+    await prisma.$transaction(async (tx) => {
+      for (const restoration of restorationsMap.values()) {
+        const invItem = await tx.inventoryItem.findUniqueOrThrow({
+          where: { id: restoration.inventoryItemId },
+        });
+
+        const newStock = invItem.currentStock.add(restoration.totalQuantity);
+
+        await tx.inventoryItem.update({
+          where: { id: invItem.id },
+          data: { currentStock: newStock },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            restaurantId,
+            inventoryItemId: invItem.id,
+            toLocationId: invItem.locationId ?? null,
+            type: 'ORDER_VOID_RETURN',
+            quantityChange: restoration.totalQuantity,
+            balanceAfter: newStock,
+            unitCost: restoration.unitCost,
+            totalCost: restoration.totalQuantity.mul(restoration.unitCost),
+            referenceType: 'ORDER_ITEM',
+            referenceId: item.id,
+            reason: `Void item ${item.itemName} (${voidReason || 'Order Item Void'})`,
+            createdById: actorId ?? null,
+          },
+        });
+      }
+    });
+  }
+
+  public static async reverseStockForVoidedOrder(
+    restaurantId: string,
+    orderId: string,
+    actorId?: string,
+    voidReason?: string,
+  ) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: {
+        items: {
+          include: {
+            modifiers: true,
+          },
+        },
+      },
+    });
+
+    if (!order || order.items.length === 0) return;
+
+    // Check if stock was ever consumed for this order
+    const consumptionMovement = await prisma.stockMovement.findFirst({
+      where: {
+        restaurantId,
+        referenceType: 'ORDER',
+        referenceId: order.id,
+        type: 'SALE_CONSUMPTION',
+      },
+    });
+
+    if (!consumptionMovement) {
+      return; // No stock was consumed
+    }
+
+    // Process each eligible pending item that hasn't already been reversed
+    for (const item of order.items) {
+      if (item.kitchenStatus === 'PENDING') {
+        const alreadyReversed = await prisma.stockMovement.findFirst({
+          where: {
+            restaurantId,
+            referenceType: 'ORDER_ITEM',
+            referenceId: item.id,
+            type: 'ORDER_VOID_RETURN',
+          },
+        });
+
+        if (!alreadyReversed) {
+          await this.reverseStockForVoidedItem(
+            restaurantId,
+            orderId,
+            item.id,
+            actorId,
+            voidReason || order.voidReason || 'Order Void',
+          );
+        }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // 10. Immutable Stock Movement Ledger History
   // ---------------------------------------------------------------------------
   public static async listLedger(restaurantId: string, query: ListLedgerQuery) {
