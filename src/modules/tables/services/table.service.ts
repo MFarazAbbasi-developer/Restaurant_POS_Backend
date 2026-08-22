@@ -65,15 +65,75 @@ export class TableService {
             openedAt: true,
           },
         },
+        orders: {
+          where: {
+            paymentStatus: { in: ['UNPAID', 'PARTIALLY_PAID'] },
+            status: { notIn: ['CANCELLED', 'VOIDED'] },
+          },
+          select: {
+            id: true,
+            orderCode: true,
+            guestCount: true,
+            status: true,
+            grandTotal: true,
+            createdAt: true,
+            tableOrderId: true,
+            items: {
+              where: { status: 'ACTIVE' },
+              select: {
+                id: true,
+                itemName: true,
+                quantity: true,
+                unitPrice: true,
+                kitchenStatus: true,
+              },
+            },
+          },
+        },
       },
       orderBy: [{ zone: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
     });
 
-    return tables.map((t) => ({
-      ...t,
-      activeOrdersCount: t.tableOrders.length,
-      isMerged: t.mergedIntoTableId !== null || t.mergedTables.length > 0,
-    }));
+    return tables.map((t) => {
+      const subBillOrders = t.tableOrders.map((o) => ({
+        id: o.id,
+        orderCode: o.orderCode,
+        subBillName: o.subBillName,
+        guestCount: o.guestCount,
+        status: o.status,
+        totalAmount: o.totalAmount.toNumber(),
+        openedAt: o.openedAt,
+        items: [],
+      }));
+
+      const directOrders = (t.orders || [])
+        .filter((ord) => !ord.tableOrderId)
+        .map((ord) => ({
+          id: ord.id,
+          orderCode: ord.orderCode,
+          subBillName: `Order #${ord.orderCode} (${ord.status})`,
+          guestCount: ord.guestCount ?? 1,
+          status: ord.status,
+          totalAmount: ord.grandTotal.toNumber(),
+          openedAt: ord.createdAt,
+          items: ord.items.map((it) => ({
+            id: it.id,
+            itemName: it.itemName,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice.toNumber(),
+            kitchenStatus: it.kitchenStatus,
+          })),
+        }));
+
+      const activeOrders = [...subBillOrders, ...directOrders];
+
+      return {
+        ...t,
+        activeOrdersCount: activeOrders.length,
+        activeOrders,
+        isMerged: t.mergedIntoTableId !== null || t.mergedTables.length > 0,
+      };
+    });
   }
 
   /**
@@ -117,6 +177,31 @@ export class TableService {
                 openedAt: true,
               },
             },
+            orders: {
+              where: {
+                paymentStatus: { in: ['UNPAID', 'PARTIALLY_PAID'] },
+                status: { notIn: ['CANCELLED', 'VOIDED'] },
+              },
+              select: {
+                id: true,
+                orderCode: true,
+                guestCount: true,
+                status: true,
+                grandTotal: true,
+                createdAt: true,
+                tableOrderId: true,
+                items: {
+                  where: { status: 'ACTIVE' },
+                  select: {
+                    id: true,
+                    itemName: true,
+                    quantity: true,
+                    unitPrice: true,
+                    kitchenStatus: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -134,19 +219,52 @@ export class TableService {
 
       const tables = zone.tables.map((table) => {
         totalTablesCount++;
-        const activeOrders = table.tableOrders.map((o) => ({
-          ...o,
+
+        const subBillOrders = table.tableOrders.map((o) => ({
+          id: o.id,
+          orderCode: o.orderCode,
+          subBillName: o.subBillName,
+          guestCount: o.guestCount,
+          status: o.status,
           totalAmount: o.totalAmount.toNumber(),
+          openedAt: o.openedAt,
+          items: [],
         }));
+
+        const directOrders = (table.orders || [])
+          .filter((ord) => !ord.tableOrderId)
+          .map((ord) => ({
+            id: ord.id,
+            orderCode: ord.orderCode,
+            subBillName: `Order #${ord.orderCode} (${ord.status})`,
+            guestCount: ord.guestCount ?? 1,
+            status: ord.status,
+            totalAmount: ord.grandTotal.toNumber(),
+            openedAt: ord.createdAt,
+            items: ord.items.map((it) => ({
+              id: it.id,
+              itemName: it.itemName,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice.toNumber(),
+              kitchenStatus: it.kitchenStatus,
+            })),
+          }));
+
+        const activeOrders = [...subBillOrders, ...directOrders];
 
         const tableGuests = activeOrders.reduce((sum, ord) => sum + ord.guestCount, 0);
         zoneGuestsCount += tableGuests;
         totalGuestsSeated += tableGuests;
 
-        if (table.status === 'OCCUPIED' || table.status === 'BILL_PRINTED') {
+        const effectiveStatus =
+          table.status === 'AVAILABLE' && activeOrders.length > 0
+            ? 'OCCUPIED'
+            : table.status;
+
+        if (effectiveStatus === 'OCCUPIED' || effectiveStatus === 'BILL_PRINTED') {
           zoneOccupiedCount++;
           occupiedTablesCount++;
-        } else if (table.status === 'AVAILABLE') {
+        } else if (effectiveStatus === 'AVAILABLE') {
           zoneAvailableCount++;
           availableTablesCount++;
         }
@@ -156,7 +274,7 @@ export class TableService {
           name: table.name,
           capacity: table.capacity,
           sortOrder: table.sortOrder,
-          status: table.status,
+          status: effectiveStatus,
           mergedIntoTableId: table.mergedIntoTableId,
           mergedIntoTable: table.mergedIntoTable,
           mergedTables: table.mergedTables,

@@ -2,26 +2,14 @@
 import {
   PrismaClient,
   TableStatus,
-  TableOrderStatus,
-  TakeawayOrderStatus,
-  TakeawayPaymentStatus,
-  DeliveryOrderStatus,
-  DeliveryPaymentStatus,
   OrderType,
   OrderStatus,
   OrderPaymentStatus,
   OrderItemStatus,
   ItemKitchenStatus,
-  PaymentMethod,
-  PaymentStatus,
   ShiftStatus,
-  CashTransactionType,
-  StockMovementType,
   PromotionType,
   PromotionTargetType,
-  LoyaltyTransactionType,
-  LoyaltyRoundingMode,
-  ReservationStatus,
   ExpenseStatus,
   ModifierSelectionType,
 } from '@prisma/client';
@@ -118,35 +106,30 @@ const DEFAULT_PERMISSIONS = [
   { key: 'promotions.apply', description: 'Apply promotional discount codes and promo overrides to orders' },
 
   // Loyalty & Customer Rewards
-  { key: 'loyalty.view', description: 'View loyalty accounts, balances, history, tier rules, and reports' },
-  { key: 'loyalty.manage', description: 'Configure loyalty program parameters and tier levels' },
-  { key: 'loyalty.adjust', description: 'Perform manual manager-authorized points adjustments' },
-  { key: 'loyalty.redeem', description: 'Redeem loyalty points during checkout' },
+  { key: 'loyalty.view', description: 'View customer reward balances, program tiers, and ledger history' },
+  { key: 'loyalty.manage', description: 'Configure reward conversion rules, expiration policies, and promotions' },
+  { key: 'loyalty.adjust', description: 'Authorize manual balance adjustments and grant bonus loyalty points' },
+  { key: 'loyalty.redeem', description: 'Apply loyalty points as redemption discounts at POS checkout' },
 
-  // Reservations & Table Bookings
-  { key: 'reservations.view', description: 'View table bookings, schedules, availability, and customer reservation history' },
-  { key: 'reservations.manage', description: 'Create, update, assign/reassign tables, and manage reservations' },
-  { key: 'reservations.status', description: 'Transition reservation statuses (confirm, seat, complete, cancel, no-show)' },
+  // Table Reservations
+  { key: 'reservations.view', description: 'View floor bookings calendar, timeline, and customer contact info' },
+  { key: 'reservations.manage', description: 'Create, modify, reassign, and reschedule reservations' },
+  { key: 'reservations.status', description: 'Confirm, seat, mark no-show, or cancel reservations' },
 
-  // Settings
-  { key: 'settings.view', description: 'View restaurant configurations and settings' },
-  { key: 'settings.manage', description: 'Modify restaurant configurations and POS settings' },
-
-  // Users & Staff
-  { key: 'users.view', description: 'View restaurant staff and user accounts' },
-  { key: 'users.manage', description: 'Manage restaurant staff and credentials' },
-
-  // Audit
-  { key: 'audit.view', description: 'View audit trails and system activity logs' },
+  // System Administration & Settings
+  { key: 'users.view', description: 'View staff user list' },
+  { key: 'users.manage', description: 'Create, edit, and deactivate staff user profiles and assign roles' },
+  { key: 'settings.view', description: 'View store settings and tax configuration' },
+  { key: 'settings.manage', description: 'Update store profile, business rules, and taxes' },
+  { key: 'audit.view', description: 'View system audit logs and shift histories' },
 ];
 
-// -----------------------------------------------------------------------------
-// 2. Role Definitions
-// -----------------------------------------------------------------------------
+const ALL_PERMISSION_KEYS = DEFAULT_PERMISSIONS.map((p) => p.key);
+
 const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: string[] }> = {
   OWNER: {
-    description: 'Full restaurant ownership with all system capabilities',
-    permissions: DEFAULT_PERMISSIONS.map((p) => p.key),
+    description: 'Full administrative and financial access to the entire restaurant POS system',
+    permissions: ALL_PERMISSION_KEYS,
   },
   MANAGER: {
     description: 'Store manager with broad operational, financial, and inventory access',
@@ -177,7 +160,7 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
       'payments.view', 'payments.create',
       'shifts.view', 'shifts.open', 'shifts.close', 'shifts.cash_drop',
       'expenses.view', 'expenses.create',
-      'kitchen.view', 'receipts.view', 'receipts.reprint', 'menu.view', 'inventory.view',
+      'kitchen.view', 'kitchen.update', 'receipts.view', 'receipts.reprint', 'menu.view', 'inventory.view',
       'promotions.view', 'promotions.apply',
       'loyalty.view', 'loyalty.redeem',
       'reservations.view', 'reservations.manage', 'reservations.status',
@@ -200,112 +183,98 @@ const ROLE_PERMISSIONS_MAP: Record<string, { description: string; permissions: s
   },
 };
 
+// -----------------------------------------------------------------------------
+// 0. Clean & Wipe All Tables
+// -----------------------------------------------------------------------------
+async function clearDatabase() {
+  console.log('🧹 [1/10] Wiping entire database to start fresh...');
+  const tablenames = await prisma.$queryRaw<
+    Array<{ tablename: string }>
+  >`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename != '_prisma_migrations';`;
+
+  for (const { tablename } of tablenames) {
+    if (tablename !== '_prisma_migrations') {
+      try {
+        await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${tablename}" CASCADE;`);
+      } catch (error) {
+        console.log(`Failed to truncate ${tablename}:`, error);
+      }
+    }
+  }
+  console.log('✨ All old data deleted successfully.');
+}
+
 async function main() {
-  console.log('🚀 Starting comprehensive Faraz POS database seed with rich data...');
+  console.log('🇵🇰 Starting Pakistani Restaurant Seed ("Faraz Shinwari & Desi Dera")...\n');
+
+  // Step 1: Wipe all old data
+  await clearDatabase();
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
   // ---------------------------------------------------------------------------
   // 1. Seed Permissions Catalog
   // ---------------------------------------------------------------------------
-  console.log('📋 Seeding global permissions catalog...');
+  console.log('📋 [2/10] Seeding system permissions catalog...');
   const permissionMap = new Map<string, string>();
   for (const perm of DEFAULT_PERMISSIONS) {
-    const record = await prisma.permission.upsert({
-      where: { key: perm.key },
-      update: { description: perm.description },
-      create: { key: perm.key, description: perm.description },
+    const record = await prisma.permission.create({
+      data: { key: perm.key, description: perm.description },
     });
     permissionMap.set(record.key, record.id);
   }
-  console.log(`✅ Seeded ${permissionMap.size} permissions`);
+  console.log(`   ✅ Seeded ${permissionMap.size} permissions`);
 
   // ---------------------------------------------------------------------------
-  // 2. Seed Default Restaurant
+  // 2. Seed Single Pakistani Restaurant Profile
   // ---------------------------------------------------------------------------
-  console.log('🏪 Seeding default restaurant profile...');
-  const restaurant = await prisma.restaurant.upsert({
-    where: { slug: 'faraz-flagship' },
-    update: {
-      name: 'Faraz Flagship Bistro',
-      legalName: 'Faraz Hospitality Group LLC',
-      phone: '+1 (555) 019-2834',
-      address: '100 Gourmet Avenue, Suite 10, New York, NY 10001',
-      currency: 'USD',
-      timezone: 'America/New_York',
-      taxNumber: 'US-NYC-TAX-88901',
-      taxRate: 8.875,
-      taxInclusive: false,
-      serviceChargeRate: 0,
-      serviceChargeEnabled: false,
-      dineInEnabled: true,
-      takeawayEnabled: true,
-      deliveryEnabled: true,
-      receiptHeader: 'Welcome to Faraz Flagship Bistro!\nWhere Flavor Meets Elegance',
-      receiptFooter: 'Thank you for dining with us! Please come again.\nFollow us @farazbistro',
-      isActive: true,
-    },
-    create: {
-      name: 'Faraz Flagship Bistro',
+  console.log('\n🏪 [3/10] Seeding single Pakistani Restaurant Profile...');
+  const restaurant = await prisma.restaurant.create({
+    data: {
+      name: 'Faraz Shinwari & Desi Dera',
       slug: 'faraz-flagship',
-      legalName: 'Faraz Hospitality Group LLC',
-      phone: '+1 (555) 019-2834',
-      address: '100 Gourmet Avenue, Suite 10, New York, NY 10001',
-      currency: 'USD',
-      timezone: 'America/New_York',
-      taxNumber: 'US-NYC-TAX-88901',
-      taxRate: 8.875,
+      legalName: 'Faraz Hospitality Group (Pvt) Ltd',
+      phone: '+92 42 3575 8899',
+      address: 'Plot 14-C, MM Alam Road, Gulberg III, Lahore, Punjab, Pakistan',
+      currency: 'PKR',
+      timezone: 'Asia/Karachi',
+      taxNumber: 'PK-NTN-7491023-8',
+      taxRate: 16.0,
       taxInclusive: false,
       serviceChargeRate: 0,
       serviceChargeEnabled: false,
       dineInEnabled: true,
       takeawayEnabled: true,
       deliveryEnabled: true,
-      receiptHeader: 'Welcome to Faraz Flagship Bistro!\nWhere Flavor Meets Elegance',
-      receiptFooter: 'Thank you for dining with us! Please come again.\nFollow us @farazbistro',
+      receiptHeader: 'Bismillah-ir-Rahman-ir-Rahim\nWelcome to Faraz Shinwari & Desi Dera\nAuthentic Koyla BBQ, Shinwari Karahi & Desi Handi\nMM Alam Road, Gulberg III, Lahore',
+      receiptFooter: 'Thank you for dining with us! Shukriya!\nFor Catering & Family Reservations: 0300-1234567\nFollow us on Instagram: @farazshinwaridera',
       isActive: true,
     },
   });
-  console.log(`✅ Restaurant: "${restaurant.name}" (ID: ${restaurant.id})`);
+  console.log(`   ✅ Restaurant: "${restaurant.name}" (Currency: ${restaurant.currency}, Tax: ${restaurant.taxRate}%)`);
 
   // ---------------------------------------------------------------------------
-  // 3. Seed System Roles and Role Permissions
+  // 3. Seed System Roles & Role Permissions
   // ---------------------------------------------------------------------------
-  console.log('🛡️  Seeding system roles and permissions...');
+  console.log('\n🛡️  [4/10] Seeding system roles & permissions...');
   const roleMap = new Map<string, string>();
 
   for (const [roleName, config] of Object.entries(ROLE_PERMISSIONS_MAP)) {
-    const role = await prisma.role.upsert({
-      where: {
-        restaurantId_name: {
-          restaurantId: restaurant.id,
-          name: roleName,
-        },
-      },
-      update: { description: config.description, isSystem: true },
-      create: {
+    const role = await prisma.role.create({
+      data: {
         restaurantId: restaurant.id,
         name: roleName,
         description: config.description,
         isSystem: true,
       },
     });
-
-    roleMap.set(role.name, role.id);
+    roleMap.set(roleName, role.id);
 
     for (const permKey of config.permissions) {
       const permissionId = permissionMap.get(permKey);
       if (permissionId) {
-        await prisma.rolePermission.upsert({
-          where: {
-            roleId_permissionId: {
-              roleId: role.id,
-              permissionId: permissionId,
-            },
-          },
-          update: {},
-          create: {
+        await prisma.rolePermission.create({
+          data: {
             roleId: role.id,
             permissionId: permissionId,
           },
@@ -313,41 +282,28 @@ async function main() {
       }
     }
   }
-  console.log(`✅ Seeded ${roleMap.size} roles and mapped permissions`);
+  console.log(`   ✅ Seeded ${roleMap.size} roles and permission links`);
 
   // ---------------------------------------------------------------------------
-  // 4. Seed Staff Users (Owner, Manager, Cashier, Waiters, Chefs, Riders)
+  // 4. Seed Pakistani Staff Users
   // ---------------------------------------------------------------------------
-  console.log('👤 Seeding full staff user roster...');
+  console.log('\n👤 [5/10] Seeding staff user roster...');
   const staffList = [
-    { username: 'owner_admin', name: 'Faraz Owner', role: 'OWNER', pin: '1234', password: 'FarazAdmin2026!', phone: '+15550192834' },
-    { username: 'manager_john', name: 'John Manager', role: 'MANAGER', pin: '2233', password: 'ManagerPass2026!', phone: '+15550192835' },
-    { username: 'cashier_sarah', name: 'Sarah Cashier', role: 'CASHIER', pin: '4321', password: 'CashierPass2026!', phone: '+15550192836' },
-    { username: 'waiter_alex', name: 'Alex Rivera', role: 'WAITER', pin: '1122', phone: '+15550192837' },
-    { username: 'waiter_maya', name: 'Maya Patel', role: 'WAITER', pin: '3344', phone: '+15550192838' },
-    { username: 'chef_gordon', name: 'Gordon Ramsay Chef', role: 'KITCHEN', pin: '7788', phone: '+15550192839' },
-    { username: 'chef_marco', name: 'Marco Kitchen Prep', role: 'KITCHEN', pin: '9900', phone: '+15550192840' },
-    { username: 'rider_ali', name: 'Ali Rider', role: 'DELIVERY', pin: '5566', phone: '+923001234567' },
-    { username: 'rider_tariq', name: 'Tariq Rider Express', role: 'DELIVERY', pin: '6677', phone: '+923009876543' },
+    { username: 'owner_admin', name: 'Faraz Owner', role: 'OWNER', pin: '1234', password: 'FarazAdmin2026!', phone: '+923001234560' },
+    { username: 'manager_john', name: 'Hamza Manager', role: 'MANAGER', pin: '2233', password: 'ManagerPass2026!', phone: '+923001234561' },
+    { username: 'cashier_sarah', name: 'Sarah Cashier', role: 'CASHIER', pin: '4321', password: 'CashierPass2026!', phone: '+923001234562' },
+    { username: 'waiter_alex', name: 'Bilal Waiter', role: 'WAITER', pin: '1122', phone: '+923001234563' },
+    { username: 'waiter_maya', name: 'Ayesha Waiter', role: 'WAITER', pin: '3344', phone: '+923001234564' },
+    { username: 'chef_gordon', name: 'Ustad Aslam (Head Chef)', role: 'KITCHEN', pin: '7788', phone: '+923001234565' },
+    { username: 'chef_marco', name: 'Ustad Rasheed (Tandoor Master)', role: 'KITCHEN', pin: '9900', phone: '+923001234566' },
+    { username: 'rider_ali', name: 'Ali Rider Express', role: 'DELIVERY', pin: '5566', phone: '+923001234567' },
+    { username: 'rider_tariq', name: 'Tariq Speed Rider', role: 'DELIVERY', pin: '6677', phone: '+923009876543' },
   ];
 
   const userMap = new Map<string, any>();
   for (const staff of staffList) {
-    const user = await prisma.user.upsert({
-      where: {
-        restaurantId_username: {
-          restaurantId: restaurant.id,
-          username: staff.username,
-        },
-      },
-      update: {
-        name: staff.name,
-        phone: staff.phone,
-        pinHash: hashCredential(staff.pin),
-        passwordHash: staff.password ? hashCredential(staff.password) : undefined,
-        isActive: true,
-      },
-      create: {
+    const user = await prisma.user.create({
+      data: {
         restaurantId: restaurant.id,
         name: staff.name,
         username: staff.username,
@@ -362,162 +318,170 @@ async function main() {
 
     const roleId = roleMap.get(staff.role);
     if (roleId) {
-      await prisma.userRole.upsert({
-        where: {
-          userId_roleId: {
-            userId: user.id,
-            roleId: roleId,
-          },
-        },
-        update: {},
-        create: {
+      await prisma.userRole.create({
+        data: {
           userId: user.id,
           roleId: roleId,
         },
       });
     }
   }
-  console.log(`✅ Seeded ${userMap.size} staff members across all roles`);
+  console.log(`   ✅ Seeded ${userMap.size} staff members across all roles`);
 
-  const ownerUser = userMap.get('owner_admin');
-  const managerUser = userMap.get('manager_john');
   const cashierUser = userMap.get('cashier_sarah');
-  const riderAli = userMap.get('rider_ali');
+  const managerUser = userMap.get('manager_john');
 
   // ---------------------------------------------------------------------------
-  // 5. Seed Seating Zones and Dining Tables
+  // 5. Seed Dining Zones & Tables (Pakistani Dera & Majlis)
   // ---------------------------------------------------------------------------
-  console.log('🪑 Seeding dining zones & tables...');
+  console.log('\n🪑 [6/10] Seeding Desi Dining Zones & Tables...');
   const zonesData = [
-    { name: 'Ground Floor', description: 'Main dining hall and central seating', order: 1, tables: [
-      { name: 'T-01', capacity: 2, status: TableStatus.AVAILABLE },
-      { name: 'T-02', capacity: 4, status: TableStatus.OCCUPIED },
-      { name: 'T-03', capacity: 4, status: TableStatus.RESERVED },
-      { name: 'T-04', capacity: 6, status: TableStatus.AVAILABLE },
-      { name: 'T-05', capacity: 2, status: TableStatus.BILL_PRINTED },
-      { name: 'T-06', capacity: 4, status: TableStatus.CLEANING },
-    ]},
-    { name: 'Family Hall', description: 'Private & family dining section', order: 2, tables: [
-      { name: 'F-01', capacity: 6, status: TableStatus.OCCUPIED },
-      { name: 'F-02', capacity: 8, status: TableStatus.AVAILABLE },
-      { name: 'F-03', capacity: 6, status: TableStatus.AVAILABLE },
-      { name: 'F-04', capacity: 10, status: TableStatus.AVAILABLE },
-    ]},
-    { name: 'Outdoor Patio', description: 'Open air terrace seating with garden view', order: 3, tables: [
-      { name: 'P-01', capacity: 4, status: TableStatus.AVAILABLE },
-      { name: 'P-02', capacity: 4, status: TableStatus.AVAILABLE },
-      { name: 'P-03', capacity: 2, status: TableStatus.AVAILABLE },
-      { name: 'P-04', capacity: 6, status: TableStatus.AVAILABLE },
-    ]},
-    { name: 'VIP Executive Lounge', description: 'Exclusive premium boardroom style seating', order: 4, tables: [
-      { name: 'VIP-01', capacity: 8, status: TableStatus.AVAILABLE },
-      { name: 'VIP-02', capacity: 12, status: TableStatus.AVAILABLE },
-    ]},
+    {
+      name: 'Desi Baithak & Takht',
+      description: 'Traditional carpeted majlis & central family baithak seating',
+      order: 1,
+      tables: [
+        { name: 'T-01', capacity: 4, status: TableStatus.AVAILABLE },
+        { name: 'T-02', capacity: 6, status: TableStatus.OCCUPIED },
+        { name: 'T-03', capacity: 4, status: TableStatus.RESERVED },
+        { name: 'T-04', capacity: 8, status: TableStatus.AVAILABLE },
+        { name: 'T-05', capacity: 4, status: TableStatus.BILL_PRINTED },
+        { name: 'T-06', capacity: 6, status: TableStatus.CLEANING },
+      ],
+    },
+    {
+      name: 'Family AC Dining Hall',
+      description: 'Comfortable air-conditioned family hall with private partitions',
+      order: 2,
+      tables: [
+        { name: 'F-01', capacity: 6, status: TableStatus.OCCUPIED },
+        { name: 'F-02', capacity: 8, status: TableStatus.AVAILABLE },
+        { name: 'F-03', capacity: 10, status: TableStatus.AVAILABLE },
+        { name: 'F-04', capacity: 12, status: TableStatus.AVAILABLE },
+      ],
+    },
+    {
+      name: 'Rooftop Koyla BBQ Terrace',
+      description: 'Open air rooftop terrace with live charcoal aroma and garden view',
+      order: 3,
+      tables: [
+        { name: 'BBQ-01', capacity: 4, status: TableStatus.AVAILABLE },
+        { name: 'BBQ-02', capacity: 6, status: TableStatus.AVAILABLE },
+        { name: 'BBQ-03', capacity: 4, status: TableStatus.AVAILABLE },
+        { name: 'BBQ-04', capacity: 8, status: TableStatus.AVAILABLE },
+      ],
+    },
+    {
+      name: 'Royal VIP Dera Lounge',
+      description: 'Executive private boardroom & VIP royal sofa setup',
+      order: 4,
+      tables: [
+        { name: 'VIP-01', capacity: 12, status: TableStatus.AVAILABLE },
+        { name: 'VIP-02', capacity: 16, status: TableStatus.AVAILABLE },
+      ],
+    },
   ];
 
   const tableMap = new Map<string, any>();
   for (const z of zonesData) {
-    const zone = await prisma.zone.upsert({
-      where: {
-        restaurantId_name: { restaurantId: restaurant.id, name: z.name },
+    const zone = await prisma.zone.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: z.name,
+        description: z.description,
+        sortOrder: z.order,
+        isActive: true,
       },
-      update: { description: z.description, sortOrder: z.order, isActive: true },
-      create: { restaurantId: restaurant.id, name: z.name, description: z.description, sortOrder: z.order, isActive: true },
     });
 
     for (let i = 0; i < z.tables.length; i++) {
       const t = z.tables[i];
-      const table = await prisma.restaurantTable.upsert({
-        where: {
-          restaurantId_name: { restaurantId: restaurant.id, name: t.name },
+      const table = await prisma.restaurantTable.create({
+        data: {
+          restaurantId: restaurant.id,
+          zoneId: zone.id,
+          name: t.name,
+          capacity: t.capacity,
+          sortOrder: i + 1,
+          status: t.status,
+          isActive: true,
         },
-        update: { zoneId: zone.id, capacity: t.capacity, sortOrder: i + 1, status: t.status, isActive: true },
-        create: { restaurantId: restaurant.id, zoneId: zone.id, name: t.name, capacity: t.capacity, sortOrder: i + 1, status: t.status, isActive: true },
       });
       tableMap.set(t.name, table);
     }
   }
-  console.log(`✅ Seeded ${zonesData.length} zones and ${tableMap.size} dining tables`);
+  console.log(`   ✅ Seeded ${zonesData.length} zones and ${tableMap.size} dining tables`);
 
   // ---------------------------------------------------------------------------
   // 6. Seed Kitchen Stations
   // ---------------------------------------------------------------------------
-  console.log('🍳 Seeding Kitchen Stations (KDS)...');
+  console.log('\n🍳 [7/10] Seeding Kitchen Stations (KDS)...');
   const stationsData = [
-    { name: 'Grill & BBQ Station', code: 'GRILL', displayOrder: 1 },
-    { name: 'Main Hot Kitchen', code: 'HOT_KITCHEN', displayOrder: 2 },
-    { name: 'Pizza & Oven Station', code: 'PIZZA_OVEN', displayOrder: 3 },
-    { name: 'Beverage & Juice Bar', code: 'BAR', displayOrder: 4 },
-    { name: 'Dessert & Bakery Counter', code: 'DESSERT', displayOrder: 5 },
+    { name: 'Koyla BBQ & Sajji Station', code: 'GRILL', displayOrder: 1 },
+    { name: 'Shinwari & Karahi Hot Section', code: 'HOT_KITCHEN', displayOrder: 2 },
+    { name: 'Tandoor & Fresh Naan Khana', code: 'TANDOOR', displayOrder: 3 },
+    { name: 'Degi Biryani & Pulao Station', code: 'BIRYANI', displayOrder: 4 },
+    { name: 'Chai, Lassi & Drinks Bar', code: 'BAR', displayOrder: 5 },
+    { name: 'Desi Meetha & Dessert Counter', code: 'DESSERT', displayOrder: 6 },
   ];
 
   const stationMap = new Map<string, any>();
   for (const s of stationsData) {
-    const station = await prisma.kitchenStation.upsert({
-      where: {
-        restaurantId_name: { restaurantId: restaurant.id, name: s.name },
+    const station = await prisma.kitchenStation.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: s.name,
+        code: s.code,
+        displayOrder: s.displayOrder,
+        isActive: true,
       },
-      update: { code: s.code, displayOrder: s.displayOrder, isActive: true },
-      create: { restaurantId: restaurant.id, name: s.name, code: s.code, displayOrder: s.displayOrder, isActive: true },
     });
     stationMap.set(s.code, station);
   }
-  console.log(`✅ Seeded ${stationMap.size} kitchen prep stations`);
+  console.log(`   ✅ Seeded ${stationMap.size} kitchen prep stations`);
 
   // ---------------------------------------------------------------------------
-  // 7. Seed Menu Categories & Kitchen Station Routing
+  // 7. Seed Menu Categories & Kitchen Routing
   // ---------------------------------------------------------------------------
-  console.log('🍔 Seeding Menu Categories & Station Routing...');
+  console.log('\n🍲 [8/10] Seeding Pakistani Menu Categories & Items...');
   const categoriesData = [
-    { name: 'Starters & Appetizers', description: 'Crispy finger foods, wings, and soups', sortOrder: 1, stationCode: 'HOT_KITCHEN' },
-    { name: 'Burgers & Sandwiches', description: 'Gourmet smashed beef burgers, crispy chicken, and artisan sandwiches', sortOrder: 2, stationCode: 'GRILL' },
-    { name: 'Steaks & Grills', description: 'Prime beef cuts, sizzling platters, and charbroiled skewers', sortOrder: 3, stationCode: 'GRILL' },
-    { name: 'Pizzas & Pastas', description: 'Hand-tossed stone baked pizzas and rich Italian pastas', sortOrder: 4, stationCode: 'PIZZA_OVEN' },
-    { name: 'Pakistani & Desi Specials', description: 'Traditional aromatic curries, karahis, and clay oven naans', sortOrder: 5, stationCode: 'HOT_KITCHEN' },
-    { name: 'Beverages & Mocktails', description: 'Refreshing mojitos, shakes, smoothies, and artisan coffees', sortOrder: 6, stationCode: 'BAR' },
-    { name: 'Desserts & Sweets', description: 'Molten lava cakes, brownies, cheesecakes, and ice cream', sortOrder: 7, stationCode: 'DESSERT' },
+    { name: 'Koyla BBQ & Charcoal Grills', description: 'Freshly skewered tender chicken, mutton chops, beef bihari & seekh kababs', sortOrder: 1, stationCode: 'GRILL' },
+    { name: 'Shinwari & Desi Karahi', description: 'Fresh live karahis prepared in animal fat, pure desi ghee or butter', sortOrder: 2, stationCode: 'HOT_KITCHEN' },
+    { name: 'Handi & Royal Curries', description: 'Creamy boneless chicken makhni, mutton handi, and rich daal makhni', sortOrder: 3, stationCode: 'HOT_KITCHEN' },
+    { name: 'Degi Biryani & Pulao', description: 'Aromatic long grain basmati rice infused with whole spices and saffron', sortOrder: 4, stationCode: 'BIRYANI' },
+    { name: 'Tandoor & Fresh Naan', description: 'Piping hot clay oven sesame roghni naans, cheese naans & khamiri rotis', sortOrder: 5, stationCode: 'TANDOOR' },
+    { name: 'Desi Starters & Chaat', description: 'Crispy gol gappay, dahi bhallay, hot chicken wings and piping hot soups', sortOrder: 6, stationCode: 'HOT_KITCHEN' },
+    { name: 'Traditional Chai & Cold Drinks', description: 'Karak doodh patti, Kashmiri pink tea, mango lassi, mint margarita & soda', sortOrder: 7, stationCode: 'BAR' },
+    { name: 'Desi Meetha (Desserts)', description: 'Warm gulab jamun with rabri, matka kheer, shahi tukray & kulfa falooda', sortOrder: 8, stationCode: 'DESSERT' },
   ];
 
   const categoryMap = new Map<string, any>();
   for (const c of categoriesData) {
-    let cat = await prisma.category.findFirst({
-      where: { restaurantId: restaurant.id, name: c.name },
+    const cat = await prisma.category.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: c.name,
+        description: c.description,
+        sortOrder: c.sortOrder,
+        isActive: true,
+      },
     });
-    if (cat) {
-      cat = await prisma.category.update({
-        where: { id: cat.id },
-        data: { description: c.description, sortOrder: c.sortOrder, isActive: true },
-      });
-    } else {
-      cat = await prisma.category.create({
-        data: { restaurantId: restaurant.id, name: c.name, description: c.description, sortOrder: c.sortOrder, isActive: true },
-      });
-    }
     categoryMap.set(c.name, cat);
 
     const station = stationMap.get(c.stationCode);
     if (station) {
-      await prisma.categoryKitchenStation.upsert({
-        where: {
-          stationId_categoryId: {
-            stationId: station.id,
-            categoryId: cat.id,
-          },
-        },
-        update: {},
-        create: {
+      await prisma.categoryKitchenStation.create({
+        data: {
           stationId: station.id,
           categoryId: cat.id,
         },
       });
     }
   }
-  console.log(`✅ Seeded ${categoryMap.size} menu categories with station routing`);
 
   // ---------------------------------------------------------------------------
   // 8. Seed Modifier Groups & Modifiers
   // ---------------------------------------------------------------------------
-  console.log('🧀 Seeding Modifier Groups & Modifiers...');
   const modifierGroupsData = [
     {
       name: 'Spice Level',
@@ -526,49 +490,46 @@ async function main() {
       maxSelections: 1,
       sortOrder: 1,
       modifiers: [
-        { name: 'Mild', priceAdjustment: 0 },
-        { name: 'Medium Spicy', priceAdjustment: 0 },
-        { name: 'Extra Spicy 🔥', priceAdjustment: 0.5 },
+        { name: 'Regular Mild', priceAdjustment: 0 },
+        { name: 'Desi Teekha (Spicy)', priceAdjustment: 0 },
+        { name: 'Koyla Mirch Extra Spicy 🔥', priceAdjustment: 50 },
       ],
     },
     {
-      name: 'Extra Cheese & Toppings',
-      selectionType: ModifierSelectionType.MULTIPLE,
-      minSelections: 0,
-      maxSelections: 3,
+      name: 'Cooking Style / Fat',
+      selectionType: ModifierSelectionType.SINGLE,
+      minSelections: 1,
+      maxSelections: 1,
       sortOrder: 2,
       modifiers: [
-        { name: 'Extra Aged Cheddar', priceAdjustment: 1.5 },
-        { name: 'Melted Mozzarella', priceAdjustment: 1.75 },
-        { name: 'Crispy Beef Bacon Strip', priceAdjustment: 2.0 },
-        { name: 'Sautéed Mushrooms', priceAdjustment: 1.25 },
-        { name: 'Jalapeño Relish', priceAdjustment: 0.75 },
+        { name: 'Standard Cooking Oil', priceAdjustment: 0 },
+        { name: 'Pure Desi Ghee Preparation', priceAdjustment: 250 },
+        { name: 'Lush Butter Preparation (Makhan)', priceAdjustment: 200 },
       ],
     },
     {
-      name: 'Choice of Sides',
-      selectionType: ModifierSelectionType.SINGLE,
+      name: 'Side Chutney & Salads',
+      selectionType: ModifierSelectionType.MULTIPLE,
       minSelections: 0,
-      maxSelections: 1,
+      maxSelections: 4,
       sortOrder: 3,
       modifiers: [
-        { name: 'Crispy French Fries', priceAdjustment: 2.5 },
-        { name: 'Seasoned Potato Wedges', priceAdjustment: 3.0 },
-        { name: 'Creamy Coleslaw', priceAdjustment: 1.75 },
-        { name: 'Garlic Mashed Potatoes', priceAdjustment: 2.5 },
+        { name: 'Fresh Zeera Raita', priceAdjustment: 100 },
+        { name: 'Mint Green Chutney', priceAdjustment: 60 },
+        { name: 'Fresh Kachumber Salad', priceAdjustment: 120 },
+        { name: 'Sweet & Tangy Imli Chutney', priceAdjustment: 80 },
       ],
     },
     {
-      name: 'Steak Doneness',
+      name: 'Chai Sweetness',
       selectionType: ModifierSelectionType.SINGLE,
       minSelections: 1,
       maxSelections: 1,
       sortOrder: 4,
       modifiers: [
-        { name: 'Rare', priceAdjustment: 0 },
-        { name: 'Medium Rare', priceAdjustment: 0 },
-        { name: 'Medium Well', priceAdjustment: 0 },
-        { name: 'Well Done', priceAdjustment: 0 },
+        { name: 'Regular Sugar', priceAdjustment: 0 },
+        { name: 'Desi Gur (Jaggery)', priceAdjustment: 30 },
+        { name: 'Sugar Free', priceAdjustment: 0 },
       ],
     },
   ];
@@ -577,1390 +538,716 @@ async function main() {
   const modItemMap = new Map<string, any>();
 
   for (const mg of modifierGroupsData) {
-    let modGroup = await prisma.modifierGroup.findFirst({
-      where: { restaurantId: restaurant.id, name: mg.name },
+    const modGroup = await prisma.modifierGroup.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: mg.name,
+        selectionType: mg.selectionType,
+        minSelections: mg.minSelections,
+        maxSelections: mg.maxSelections,
+        sortOrder: mg.sortOrder,
+        isActive: true,
+      },
     });
-
-    if (modGroup) {
-      modGroup = await prisma.modifierGroup.update({
-        where: { id: modGroup.id },
-        data: {
-          selectionType: mg.selectionType,
-          minSelections: mg.minSelections,
-          maxSelections: mg.maxSelections,
-          sortOrder: mg.sortOrder,
-          isActive: true,
-        },
-      });
-    } else {
-      modGroup = await prisma.modifierGroup.create({
-        data: {
-          restaurantId: restaurant.id,
-          name: mg.name,
-          selectionType: mg.selectionType,
-          minSelections: mg.minSelections,
-          maxSelections: mg.maxSelections,
-          sortOrder: mg.sortOrder,
-          isActive: true,
-        },
-      });
-    }
-
     modGroupMap.set(mg.name, modGroup);
 
     for (let i = 0; i < mg.modifiers.length; i++) {
       const m = mg.modifiers[i];
-      let mod = await prisma.modifier.findFirst({
-        where: { modifierGroupId: modGroup.id, name: m.name },
+      const mod = await prisma.modifier.create({
+        data: {
+          modifierGroupId: modGroup.id,
+          name: m.name,
+          priceAdjustment: m.priceAdjustment,
+          sortOrder: i + 1,
+          isActive: true,
+        },
       });
-      if (mod) {
-        mod = await prisma.modifier.update({
-          where: { id: mod.id },
-          data: {
-            priceAdjustment: m.priceAdjustment,
-            sortOrder: i + 1,
-            isActive: true,
-          },
-        });
-      } else {
-        mod = await prisma.modifier.create({
-          data: {
-            modifierGroupId: modGroup.id,
-            name: m.name,
-            priceAdjustment: m.priceAdjustment,
-            sortOrder: i + 1,
-            isActive: true,
-          },
-        });
-      }
       modItemMap.set(`${mg.name}:${m.name}`, mod);
     }
   }
-  console.log(`✅ Seeded ${modGroupMap.size} modifier groups and options`);
 
   // ---------------------------------------------------------------------------
-  // 9. Seed Menu Items & Variants & Modifier Links
+  // 9. Seed Authentic Pakistani Menu Items & Variants (Prices in PKR)
   // ---------------------------------------------------------------------------
-  console.log('📋 Seeding complete culinary menu items...');
   const menuItemsData = [
-    // Starters
+    // 1. Koyla BBQ & Charcoal Grills
     {
-      itemCode: 'APP-001',
-      category: 'Starters & Appetizers',
-      name: 'Crispy Buffalo Wings (8 Pcs)',
-      urduName: 'کرسپی بفلو ونگز',
-      description: 'Golden fried chicken wings tossed in tangy artisan buffalo glaze served with ranch dip',
-      basePrice: 8.99,
-      sortOrder: 1,
+      category: 'Koyla BBQ & Charcoal Grills',
+      name: 'Chicken Malai Boti',
+      itemCode: 'BBQ-01',
+      description: 'Boneless chicken cubes marinated in heavy fresh cream, green chilies, and roasted spices',
+      basePrice: 950,
+      modifierGroups: ['Spice Level', 'Side Chutney & Salads'],
       variants: [
-        { name: 'Regular (8 Pcs)', price: 8.99 },
-        { name: 'Jumbo Platter (16 Pcs)', price: 15.99 },
-      ],
-      modGroups: ['Spice Level'],
-    },
-    {
-      itemCode: 'APP-002',
-      category: 'Starters & Appetizers',
-      name: 'Loaded Cheesy Nachos',
-      urduName: 'چیزی ناچوز',
-      description: 'Corn tortilla chips smothered in melted queso, jalapeños, salsa, and sour cream',
-      basePrice: 7.50,
-      sortOrder: 2,
-      modGroups: ['Extra Cheese & Toppings'],
-    },
-    {
-      itemCode: 'APP-003',
-      category: 'Starters & Appetizers',
-      name: 'Garlic Parmesan Breadsticks',
-      urduName: 'گارلک بریڈ اسٹکس',
-      description: 'Freshly baked dough sticks brushed with garlic herb butter and aged parmesan',
-      basePrice: 5.99,
-      sortOrder: 3,
-    },
-    // Burgers
-    {
-      itemCode: 'BGR-001',
-      category: 'Burgers & Sandwiches',
-      name: 'The Faraz Signature Smashed Beef Burger',
-      urduName: 'فراز اسپیشل اسمیشڈ بیف برگر',
-      description: 'Double Angus beef patties, caramelized onions, melted cheddar, pickles & house secret sauce',
-      basePrice: 12.99,
-      sortOrder: 1,
-      variants: [
-        { name: 'Single Patty', price: 9.99 },
-        { name: 'Double Patty Smashed', price: 12.99 },
-        { name: 'Triple Monster Stack', price: 15.99 },
-      ],
-      modGroups: ['Spice Level', 'Extra Cheese & Toppings', 'Choice of Sides'],
-    },
-    {
-      itemCode: 'BGR-002',
-      category: 'Burgers & Sandwiches',
-      name: 'Crispy Nashville Hot Zinger Burger',
-      urduName: 'نیش ول ہاٹ زنگر برگر',
-      description: 'Buttermilk fried chicken breast fillet dipped in Nashville chili oil with creamy slaw',
-      basePrice: 10.99,
-      sortOrder: 2,
-      modGroups: ['Spice Level', 'Extra Cheese & Toppings', 'Choice of Sides'],
-    },
-    {
-      itemCode: 'BGR-003',
-      category: 'Burgers & Sandwiches',
-      name: 'Swiss Mushroom Melt Burger',
-      urduName: 'سوئس مشروم برگر',
-      description: 'Charbroiled beef patty loaded with sautéed button mushrooms and melted Swiss cheese',
-      basePrice: 13.50,
-      sortOrder: 3,
-      modGroups: ['Extra Cheese & Toppings', 'Choice of Sides'],
-    },
-    // Steaks
-    {
-      itemCode: 'STK-001',
-      category: 'Steaks & Grills',
-      name: 'Prime Ribeye Steak (300g)',
-      urduName: 'پرائم رب آئی اسٹیک',
-      description: 'Marbled USDA prime ribeye grilled over open charcoal flames, served with peppercorn gravy',
-      basePrice: 24.99,
-      sortOrder: 1,
-      modGroups: ['Steak Doneness', 'Choice of Sides'],
-    },
-    {
-      itemCode: 'STK-002',
-      category: 'Steaks & Grills',
-      name: 'Grilled Herb Chicken Skillet',
-      urduName: 'گرلڈ ہرب چکن اسکلیٹ',
-      description: 'Marinated tender chicken fillets served on a sizzling hot skillet with roasted baby veggies',
-      basePrice: 16.50,
-      sortOrder: 2,
-      modGroups: ['Choice of Sides'],
-    },
-    // Pizzas & Pastas
-    {
-      itemCode: 'PIZ-001',
-      category: 'Pizzas & Pastas',
-      name: 'Pepperoni Supreme Stone-Baked Pizza',
-      urduName: 'پیپرونی سپریم پیزا',
-      description: 'San Marzano tomato base, whole milk mozzarella, and crispy beef pepperoni slices',
-      basePrice: 14.99,
-      sortOrder: 1,
-      variants: [
-        { name: 'Personal 8-inch', price: 9.99 },
-        { name: 'Medium 12-inch', price: 14.99 },
-        { name: 'Family Large 16-inch', price: 19.99 },
-      ],
-      modGroups: ['Extra Cheese & Toppings'],
-    },
-    {
-      itemCode: 'PIZ-002',
-      category: 'Pizzas & Pastas',
-      name: 'Margherita Fresca Pizza',
-      urduName: 'مارگریٹا پیزا',
-      description: 'Classic Neapolitan style pizza with fresh buffalo mozzarella, basil leaves & extra virgin olive oil',
-      basePrice: 12.99,
-      sortOrder: 2,
-      variants: [
-        { name: 'Personal 8-inch', price: 8.99 },
-        { name: 'Medium 12-inch', price: 12.99 },
-        { name: 'Family Large 16-inch', price: 16.99 },
+        { name: 'Regular Skewer (8 Pcs)', price: 950 },
+        { name: 'Full Platter (16 Pcs)', price: 1800 },
       ],
     },
     {
-      itemCode: 'PAS-001',
-      category: 'Pizzas & Pastas',
-      name: 'Fettuccine Alfredo with Grilled Chicken',
-      urduName: 'فیٹوچینی الفریڈو پاستا',
-      description: 'Al dente fettuccine ribbons tossed in velvety garlic parmesan cream sauce with herb chicken',
-      basePrice: 13.99,
-      sortOrder: 3,
-    },
-    // Pakistani & Desi Specials
-    {
-      itemCode: 'DES-001',
-      category: 'Pakistani & Desi Specials',
-      name: 'Desi Makhni Butter Chicken Karahi',
-      urduName: 'دیسی مکھنی بٹر چکن کڑاہی',
-      description: 'Boneless chicken cubes simmered in a velvety tomato, cream, and desi ghee gravy with ginger julienne',
-      basePrice: 17.99,
-      sortOrder: 1,
-      variants: [
-        { name: 'Half Karahi (Serves 2)', price: 17.99 },
-        { name: 'Full Karahi (Serves 4)', price: 29.99 },
-      ],
-      modGroups: ['Spice Level'],
+      category: 'Koyla BBQ & Charcoal Grills',
+      name: 'Beef Bihari Boti',
+      itemCode: 'BBQ-02',
+      description: 'Melt-in-mouth thinly sliced beef marinated in raw papaya and secret Bihari masala',
+      basePrice: 1150,
+      modifierGroups: ['Spice Level', 'Side Chutney & Salads'],
     },
     {
-      itemCode: 'DES-002',
-      category: 'Pakistani & Desi Specials',
-      name: 'Royal Mutton Dum Biryani',
-      urduName: 'شاہی مٹن دم بریانی',
-      description: 'Slow-cooked succulent mutton layered with long grain basmati rice, saffron, and aromatic spices',
-      basePrice: 15.99,
-      sortOrder: 2,
-      variants: [
-        { name: 'Single Portion', price: 15.99 },
-        { name: 'Family Dawat Platter', price: 28.99 },
-      ],
+      category: 'Koyla BBQ & Charcoal Grills',
+      name: 'Mutton Chops BBQ (4 Pcs)',
+      itemCode: 'BBQ-03',
+      description: 'Succulent mutton chops grilled on live charcoal flames with pomegranate molasses',
+      basePrice: 1850,
+      modifierGroups: ['Spice Level', 'Side Chutney & Salads'],
     },
     {
-      itemCode: 'DES-003',
-      category: 'Pakistani & Desi Specials',
-      name: 'Butter Naan / Garlic Naan',
-      urduName: 'بٹر نان / گارلک نان',
-      description: 'Tandoor baked fluffy flatbread brushed with organic butter or minced garlic cilantro',
-      basePrice: 2.50,
-      sortOrder: 3,
+      category: 'Koyla BBQ & Charcoal Grills',
+      name: 'Chicken Reshmi Kabab (4 Pcs)',
+      itemCode: 'BBQ-04',
+      description: 'Silky smooth minced chicken seasoned with coriander, butter, and mild herbs',
+      basePrice: 850,
+      modifierGroups: ['Side Chutney & Salads'],
+    },
+    {
+      category: 'Koyla BBQ & Charcoal Grills',
+      name: 'Beef Seekh Kabab Special (4 Pcs)',
+      itemCode: 'BBQ-05',
+      description: 'Traditional charcoal grilled spiced beef skewers packed with juicy aroma',
+      basePrice: 900,
+      modifierGroups: ['Spice Level', 'Side Chutney & Salads'],
+    },
+    {
+      category: 'Koyla BBQ & Charcoal Grills',
+      name: 'Balochi Chicken Sajji with Rice',
+      itemCode: 'BBQ-06',
+      description: 'Slow-roasted crispy skin whole chicken served over seasoned fragrant aromatic rice',
+      basePrice: 1800,
       variants: [
-        { name: 'Plain Tandoori Roti', price: 1.50 },
-        { name: 'Butter Naan', price: 2.50 },
-        { name: 'Garlic Herb Naan', price: 3.00 },
-        { name: 'Cheese Stuffed Naan', price: 4.50 },
+        { name: 'Full Sajji with Rice', price: 1800 },
+        { name: 'Half Sajji with Rice', price: 1000 },
       ],
     },
-    // Beverages
     {
-      itemCode: 'BEV-001',
-      category: 'Beverages & Mocktails',
-      name: 'Fresh Mint Margarita Cooler',
-      urduName: 'فریش منٹ مارگریٹا',
-      description: 'Crushed ice blended with fresh garden mint leaves, lime juice, rock salt, and sprite',
-      basePrice: 4.50,
-      sortOrder: 1,
+      category: 'Koyla BBQ & Charcoal Grills',
+      name: 'Fish Tikka (Rahu / Surmai)',
+      itemCode: 'BBQ-07',
+      description: 'Fresh seasonal boneless fish marinated in ajwain, lemon juice, and red chili',
+      basePrice: 1500,
+      modifierGroups: ['Side Chutney & Salads'],
     },
+
+    // 2. Shinwari & Desi Karahi
     {
-      itemCode: 'BEV-002',
-      category: 'Beverages & Mocktails',
-      name: 'Iced Caramel Macchiato',
-      urduName: 'آئسڈ کیریمل مکیاٹو',
-      description: 'Double shot espresso poured over cold milk, Madagascar vanilla, and drizzled with caramel',
-      basePrice: 5.25,
-      sortOrder: 2,
-    },
-    {
-      itemCode: 'BEV-003',
-      category: 'Beverages & Mocktails',
-      name: 'Soft Drink 330ml Can',
-      urduName: 'کولڈ ڈرنک کین',
-      description: 'Chilled soda can (Coca-Cola, Diet Coke, Sprite, Fanta, Ginger Ale)',
-      basePrice: 2.00,
-      sortOrder: 3,
+      category: 'Shinwari & Desi Karahi',
+      name: 'Peshawari Mutton Shinwari Karahi',
+      itemCode: 'KRH-01',
+      description: 'Signature Shinwari style fresh lamb/mutton cooked with fresh tomatoes, animal fat, salt, and green chilies only',
+      basePrice: 3800,
+      modifierGroups: ['Cooking Style / Fat', 'Side Chutney & Salads'],
       variants: [
-        { name: 'Coca-Cola Can 330ml', price: 2.00 },
-        { name: 'Diet Coke Can 330ml', price: 2.00 },
-        { name: 'Sprite Lemon-Lime 330ml', price: 2.00 },
-        { name: 'Sparkling Mineral Water 500ml', price: 2.50 },
+        { name: 'Full (1.0 KG)', price: 3800 },
+        { name: 'Half (0.5 KG)', price: 2100 },
       ],
     },
-    // Desserts
     {
-      itemCode: 'DST-001',
-      category: 'Desserts & Sweets',
-      name: 'Gourmet Belgian Molten Lava Cake',
-      urduName: 'بیلجیئن مولٹن لاوا کیک',
-      description: 'Warm dark chocolate cake with a gooey flowing center, served with French vanilla bean gelato',
-      basePrice: 7.99,
-      sortOrder: 1,
+      category: 'Shinwari & Desi Karahi',
+      name: 'Chicken Desi Ghee Karahi',
+      itemCode: 'KRH-02',
+      description: 'Tender chicken braised in pure country desi ghee, black pepper, ginger julienne, and tomatoes',
+      basePrice: 2200,
+      modifierGroups: ['Spice Level', 'Cooking Style / Fat', 'Side Chutney & Salads'],
+      variants: [
+        { name: 'Full (1.0 KG)', price: 2200 },
+        { name: 'Half (0.5 KG)', price: 1250 },
+      ],
     },
     {
-      itemCode: 'DST-002',
-      category: 'Desserts & Sweets',
-      name: 'New York Style Berry Cheesecake',
-      urduName: 'نیویارک چیزکیک',
-      description: 'Rich and creamy baked cheesecake topped with homemade wild strawberry compote',
-      basePrice: 6.99,
-      sortOrder: 2,
+      category: 'Shinwari & Desi Karahi',
+      name: 'Chicken White Karahi (Creamy)',
+      itemCode: 'KRH-03',
+      description: 'Rich white gravy karahi made with thick yogurt, dairy cream, crushed white pepper, and green chilies',
+      basePrice: 2400,
+      variants: [
+        { name: 'Full (1.0 KG)', price: 2400 },
+        { name: 'Half (0.5 KG)', price: 1350 },
+      ],
+    },
+    {
+      category: 'Shinwari & Desi Karahi',
+      name: 'Brain Masala Fry (Maghaz)',
+      itemCode: 'KRH-04',
+      description: 'Tender goat brain sautéed with finely chopped onions, tomatoes, and ground spices in butter',
+      basePrice: 1400,
+      modifierGroups: ['Spice Level'],
+    },
+
+    // 3. Handi & Royal Curries
+    {
+      category: 'Handi & Royal Curries',
+      name: 'Chicken Makhni Handi (Boneless)',
+      itemCode: 'HND-01',
+      description: 'Succulent boneless chicken simmered in a velvety tomato, butter, and fenugreek gravy in clay pot',
+      basePrice: 1650,
+      modifierGroups: ['Spice Level', 'Cooking Style / Fat'],
+    },
+    {
+      category: 'Handi & Royal Curries',
+      name: 'Mutton Mughlai White Handi',
+      itemCode: 'HND-02',
+      description: 'Tender mutton cubes slow-cooked with cashew paste, cream, and green cardamom',
+      basePrice: 2400,
+      modifierGroups: ['Cooking Style / Fat'],
+    },
+    {
+      category: 'Handi & Royal Curries',
+      name: 'Paneer Reshmi Handi',
+      itemCode: 'HND-03',
+      description: 'Fresh cottage cheese cubes cooked in a mild aromatic cashew butter gravy',
+      basePrice: 1300,
+    },
+    {
+      category: 'Handi & Royal Curries',
+      name: 'Shahi Daal Makhni (Desi Makhan)',
+      itemCode: 'HND-04',
+      description: 'Black lentils slow cooked overnight over glowing charcoal, finished with pure churned butter and cream',
+      basePrice: 750,
+    },
+
+    // 4. Degi Biryani & Pulao
+    {
+      category: 'Degi Biryani & Pulao',
+      name: 'Special Mutton Dum Biryani (Matka)',
+      itemCode: 'BRY-01',
+      description: 'Layers of long-grain aged basmati rice and fall-off-the-bone spiced mutton sealed with dough and slow steamed',
+      basePrice: 850,
+      modifierGroups: ['Side Chutney & Salads'],
+      variants: [
+        { name: 'Single Serving', price: 850 },
+        { name: 'Double Matka (2-3 Persons)', price: 1550 },
+      ],
+    },
+    {
+      category: 'Degi Biryani & Pulao',
+      name: 'Chicken Sindhi Biryani',
+      itemCode: 'BRY-02',
+      description: 'Fragrant spicy chicken biryani with spiced potatoes, dried plums (aaloo bukhara), and saffron',
+      basePrice: 550,
+      modifierGroups: ['Side Chutney & Salads'],
+      variants: [
+        { name: 'Single Serving', price: 550 },
+        { name: 'Special Double Serving', price: 950 },
+      ],
+    },
+    {
+      category: 'Degi Biryani & Pulao',
+      name: 'Peshawari Kabuli Pulao (Mutton)',
+      itemCode: 'BRY-03',
+      description: 'Mildly sweet & savory rice topped with caramelized carrots, raisins, almonds, and large tender mutton shank',
+      basePrice: 1250,
+    },
+
+    // 5. Tandoor & Fresh Naan
+    {
+      category: 'Tandoor & Fresh Naan',
+      name: 'Special Roghni Naan',
+      itemCode: 'NAN-01',
+      description: 'Soft tandoori bread brushed with butter, milk wash, and sprinkled with golden sesame seeds (til)',
+      basePrice: 120,
+    },
+    {
+      category: 'Tandoor & Fresh Naan',
+      name: 'Garlic Butter Naan',
+      itemCode: 'NAN-02',
+      description: 'Tandoori naan topped with roasted minced garlic, fresh coriander, and melted butter',
+      basePrice: 140,
+    },
+    {
+      category: 'Tandoor & Fresh Naan',
+      name: 'Stuffed Cheese Naan',
+      itemCode: 'NAN-03',
+      description: 'Crispy naan stuffed with stretchy mozzarella, cheddar cheese, and fresh green herbs',
+      basePrice: 380,
+    },
+    {
+      category: 'Tandoor & Fresh Naan',
+      name: 'Kalonji Naan (Black Seed)',
+      itemCode: 'NAN-04',
+      description: 'Fresh clay oven naan coated with nigella seeds (kalonji) and butter',
+      basePrice: 110,
+    },
+    {
+      category: 'Tandoor & Fresh Naan',
+      name: 'Khamiri / Tandoori Roti',
+      itemCode: 'NAN-05',
+      description: 'Whole wheat traditional roti baked inside clay tandoor',
+      basePrice: 40,
+    },
+
+    // 6. Desi Starters & Chaat
+    {
+      category: 'Desi Starters & Chaat',
+      name: 'Special Dahi Bhallay',
+      itemCode: 'STR-01',
+      description: 'Soft lentil dumplings soaked in chilled whipped yogurt, chickpeas, potatoes, and sweet-sour tamarind chutney',
+      basePrice: 420,
+    },
+    {
+      category: 'Desi Starters & Chaat',
+      name: 'Lahori Pani Puri / Gol Gappay (10 Pcs)',
+      itemCode: 'STR-02',
+      description: 'Crispy semolina hollow spheres filled with spicy chickpeas, chilled mint-tamarind water, and sweet chutney',
+      basePrice: 380,
+    },
+    {
+      category: 'Desi Starters & Chaat',
+      name: 'Hot & Sour Chicken Corn Soup',
+      itemCode: 'STR-03',
+      description: 'Thick chicken broth loaded with shredded chicken breast, sweet corn, egg drops, and green chili vinegar',
+      basePrice: 450,
+    },
+    {
+      category: 'Desi Starters & Chaat',
+      name: 'Crispy Fried Chicken Wings (8 Pcs)',
+      itemCode: 'STR-04',
+      description: 'Deep fried crispy battered wings tossed with spicy peri-peri seasoning',
+      basePrice: 650,
+    },
+
+    // 7. Traditional Chai & Cold Drinks
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Karak Doodh Patti Chai (Matka)',
+      itemCode: 'DRK-01',
+      description: 'Rich slow-boiled full-cream buffalo milk tea infused with green cardamom in clay matka',
+      basePrice: 180,
+      modifierGroups: ['Chai Sweetness'],
+    },
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Kashmiri Pink Chai (Gulabi Tea)',
+      itemCode: 'DRK-02',
+      description: 'Authentic royal pink tea brewed with special leaves, milk, crushed pistachios, and almonds',
+      basePrice: 250,
+      modifierGroups: ['Chai Sweetness'],
+    },
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Peshawari Qehwa (Cardamom & Mint)',
+      itemCode: 'DRK-03',
+      description: 'Traditional green tea served hot with lemon slice and pure honey on side',
+      basePrice: 120,
+    },
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Special Mango Lassi (Tall Glass)',
+      itemCode: 'DRK-04',
+      description: 'Rich churned yogurt blended with ripe Chaunsa mango pulp and fresh cream',
+      basePrice: 350,
+    },
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Sweet / Salted Lassi (Perra Lassi)',
+      itemCode: 'DRK-05',
+      description: 'Traditional Punjabi churned yogurt drink with a dollop of fresh thick malai',
+      basePrice: 280,
+    },
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Fresh Mint Margarita',
+      itemCode: 'DRK-06',
+      description: 'Crushed ice, fresh mint leaves, lemon juice, black salt, and sparkling soda',
+      basePrice: 320,
+    },
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Cold Drink Can (Pakola / Coke / Sprite 330ml)',
+      itemCode: 'DRK-07',
+      description: 'Chilled 330ml can of selected soft drink',
+      basePrice: 140,
+    },
+    {
+      category: 'Traditional Chai & Cold Drinks',
+      name: 'Mineral Water (Large 1.5L)',
+      itemCode: 'DRK-08',
+      description: 'Purified drinking water 1.5 Liter bottle',
+      basePrice: 150,
+    },
+
+    // 8. Desi Meetha (Desserts)
+    {
+      category: 'Desi Meetha (Desserts)',
+      name: 'Gulab Jamun with Warm Rabri (2 Pcs)',
+      itemCode: 'MST-01',
+      description: 'Hot spongy khoya dumplings immersed in saffron cardamom syrup, served with thick chilled rabri',
+      basePrice: 350,
+    },
+    {
+      category: 'Desi Meetha (Desserts)',
+      name: 'Matka Kheer Khas (Clay Pot)',
+      itemCode: 'MST-02',
+      description: 'Slow-cooked fragrant rice pudding garnished with silver warq, sliced almonds, and pistachios',
+      basePrice: 320,
+    },
+    {
+      category: 'Desi Meetha (Desserts)',
+      name: 'Shahi Tukray (Royal Saffron)',
+      itemCode: 'MST-03',
+      description: 'Golden fried brioche soaked in condensed saffron milk and clotted cream',
+      basePrice: 380,
+    },
+    {
+      category: 'Desi Meetha (Desserts)',
+      name: 'Kulfa Falooda with Rabri',
+      itemCode: 'MST-04',
+      description: 'Traditional pistachio kulfa slice over chilled vermicelli, basil seeds (tukhm-e-balanga), and Rooh Afza syrup',
+      basePrice: 480,
     },
   ];
 
   const menuItemMap = new Map<string, any>();
-  const variantMap = new Map<string, any>();
+  for (let itemIdx = 0; itemIdx < menuItemsData.length; itemIdx++) {
+    const item = menuItemsData[itemIdx];
+    const category = categoryMap.get(item.category);
+    if (!category) continue;
 
-  for (const item of menuItemsData) {
-    const cat = categoryMap.get(item.category);
-    if (!cat) continue;
-
-    const menuItem = await prisma.menuItem.upsert({
-      where: {
-        restaurantId_itemCode: {
-          restaurantId: restaurant.id,
-          itemCode: item.itemCode,
-        },
-      },
-      update: {
-        categoryId: cat.id,
-        name: item.name,
-        urduName: item.urduName,
-        description: item.description,
-        basePrice: item.basePrice,
-        sortOrder: item.sortOrder,
-        isActive: true,
-        isAvailable: true,
-      },
-      create: {
+    const createdItem = await prisma.menuItem.create({
+      data: {
         restaurantId: restaurant.id,
-        categoryId: cat.id,
+        categoryId: category.id,
         itemCode: item.itemCode,
         name: item.name,
-        urduName: item.urduName,
         description: item.description,
         basePrice: item.basePrice,
-        sortOrder: item.sortOrder,
+        sortOrder: itemIdx + 1,
         isActive: true,
         isAvailable: true,
       },
     });
+    menuItemMap.set(item.name, createdItem);
 
-    menuItemMap.set(item.itemCode, menuItem);
-
-    // Variants
-    if (item.variants && item.variants.length > 0) {
-      for (let i = 0; i < item.variants.length; i++) {
-        const v = item.variants[i];
-        let variant = await prisma.menuItemVariant.findFirst({
-          where: { menuItemId: menuItem.id, name: v.name },
-        });
-        if (variant) {
-          variant = await prisma.menuItemVariant.update({
-            where: { id: variant.id },
-            data: { price: v.price, sortOrder: i + 1, isActive: true },
-          });
-        } else {
-          variant = await prisma.menuItemVariant.create({
+    // Link modifier groups
+    if (item.modifierGroups) {
+      for (const groupName of item.modifierGroups) {
+        const modGroup = modGroupMap.get(groupName);
+        if (modGroup) {
+          await prisma.menuItemModifierGroup.create({
             data: {
-              menuItemId: menuItem.id,
-              name: v.name,
-              price: v.price,
-              sortOrder: i + 1,
-              isActive: true,
-            },
-          });
-        }
-        variantMap.set(`${item.itemCode}:${v.name}`, variant);
-      }
-    }
-
-    // Link Modifier Groups
-    if (item.modGroups && item.modGroups.length > 0) {
-      for (let i = 0; i < item.modGroups.length; i++) {
-        const mgName = item.modGroups[i];
-        const mg = modGroupMap.get(mgName);
-        if (mg) {
-          await prisma.menuItemModifierGroup.upsert({
-            where: {
-              menuItemId_modifierGroupId: {
-                menuItemId: menuItem.id,
-                modifierGroupId: mg.id,
-              },
-            },
-            update: { sortOrder: i + 1 },
-            create: {
-              menuItemId: menuItem.id,
-              modifierGroupId: mg.id,
-              sortOrder: i + 1,
-              isRequired: mg.minSelections > 0,
+              menuItemId: createdItem.id,
+              modifierGroupId: modGroup.id,
             },
           });
         }
       }
     }
+
+    // Create portion / price variants
+    if (item.variants) {
+      for (let vIdx = 0; vIdx < item.variants.length; vIdx++) {
+        const v = item.variants[vIdx];
+        await prisma.menuItemVariant.create({
+          data: {
+            menuItemId: createdItem.id,
+            name: v.name,
+            price: v.price,
+            sortOrder: vIdx + 1,
+            isActive: true,
+          },
+        });
+      }
+    }
   }
-  console.log(`✅ Seeded ${menuItemMap.size} menu items and ${variantMap.size} portion variants`);
+  console.log(`   ✅ Seeded ${menuItemMap.size} authentic Pakistani dishes across 8 categories`);
 
   // ---------------------------------------------------------------------------
-  // 10. Seed Stock Locations
+  // 10. Seed Stock Location, Suppliers & Raw Inventory Items
   // ---------------------------------------------------------------------------
-  console.log('🏢 Seeding Inventory Stock Locations...');
-  const locationsData = [
-    { name: 'Main Cold Storage & Walk-in', code: 'COLD_STORE', isDefault: true },
-    { name: 'Kitchen Dry Pantry', code: 'DRY_PANTRY', isDefault: false },
-    { name: 'Bar & Beverage Cellar', code: 'BAR_STORE', isDefault: false },
-    { name: 'Packaging & Disposables Store', code: 'PACKAGING_STORE', isDefault: false },
-  ];
+  console.log('\n📦 [9/10] Seeding Raw Inventory Ingredients & Local Suppliers...');
+  const mainLocation = await prisma.stockLocation.create({
+    data: {
+      restaurantId: restaurant.id,
+      name: 'Main Kitchen Store & Cold Storage',
+      code: 'MAIN-STORE',
+      isDefault: true,
+      isActive: true,
+    },
+  });
 
-  const locationMap = new Map<string, any>();
-  for (const loc of locationsData) {
-    const record = await prisma.stockLocation.upsert({
-      where: {
-        restaurantId_name: { restaurantId: restaurant.id, name: loc.name },
-      },
-      update: { code: loc.code, isDefault: loc.isDefault, isActive: true },
-      create: { restaurantId: restaurant.id, name: loc.name, code: loc.code, isDefault: loc.isDefault, isActive: true },
-    });
-    locationMap.set(loc.code, record);
-  }
-  console.log(`✅ Seeded ${locationMap.size} inventory locations`);
-
-  const coldLocation = locationMap.get('COLD_STORE');
-  const dryPantryLocation = locationMap.get('DRY_PANTRY');
-  const packagingLocation = locationMap.get('PACKAGING_STORE');
-
-  // ---------------------------------------------------------------------------
-  // 11. Seed Suppliers
-  // ---------------------------------------------------------------------------
-  console.log('🏭 Seeding Supplier Directory...');
   const suppliersData = [
-    { name: 'Apex Prime Meat & Poultry Co.', contactPerson: 'Karim Ullah', phone: '+1 (555) 301-4499', email: 'orders@apexprime.com', address: '44 Meatpacking Way, Bronx, NY' },
-    { name: 'Green Valley Fresh Produce LLC', contactPerson: 'Elena Rostova', phone: '+1 (555) 778-9922', email: 'delivery@greenvalley.com', address: '12 Farmers Market Loop, Queens, NY' },
-    { name: 'Dairy Crest Artisanal Provisions', contactPerson: 'Liam O’Connor', phone: '+1 (555) 441-2288', email: 'sales@dairycrest.com', address: '88 Dairy Farm Road, Brooklyn, NY' },
-    { name: 'Oceanic Global Spices & Dry Staples', contactPerson: 'Haris Mansoor', phone: '+1 (555) 902-1133', email: 'info@oceanicstaples.com', address: '200 Import Blvd, Newark, NJ' },
-    { name: 'EcoPack Packaging & Disposables Hub', contactPerson: 'Jessica Tan', phone: '+1 (555) 667-8811', email: 'supplies@ecopackhub.com', address: '30 Industrial Parkway, Jersey City, NJ' },
+    { name: 'Lahore Meat & Poultry Mart (Tollinton)', contactPerson: 'Haji Aslam Meat Wale', phone: '+92 300 4455661', email: 'aslam.meat@tollinton.pk', address: 'Shop 12-B, Tollinton Market, Jail Road, Lahore' },
+    { name: 'Punjab Dairy & Village Milk Farms', contactPerson: 'Chaudhry Riaz Dairy', phone: '+92 321 8899002', email: 'riaz.dairy@punjabfarms.pk', address: 'Raiwind Road Milk Farm, Lahore' },
+    { name: 'Al-Rehman Rice Traders & Millers', contactPerson: 'Sheikh Tariq Rice', phone: '+92 333 1122334', email: 'sales@alrehmanrice.pk', address: 'Grain Market, Sheikhupura' },
+    { name: 'Metro Cash & Carry Pakistan', contactPerson: 'Commercial Accounts B2B', phone: '+92 42 111 786 922', email: 'b2b.orders@metro.pk', address: 'Model Town Link Road Branch, Lahore' },
   ];
 
   const supplierMap = new Map<string, any>();
   for (const s of suppliersData) {
-    const record = await prisma.supplier.upsert({
-      where: {
-        restaurantId_name: { restaurantId: restaurant.id, name: s.name },
+    const supp = await prisma.supplier.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: s.name,
+        contactPerson: s.contactPerson,
+        phone: s.phone,
+        email: s.email,
+        address: s.address,
+        isActive: true,
       },
-      update: { contactPerson: s.contactPerson, phone: s.phone, email: s.email, address: s.address, isActive: true },
-      create: { restaurantId: restaurant.id, name: s.name, contactPerson: s.contactPerson, phone: s.phone, email: s.email, address: s.address, isActive: true },
     });
-    supplierMap.set(s.name, record);
+    supplierMap.set(s.name, supp);
   }
-  console.log(`✅ Seeded ${supplierMap.size} suppliers`);
 
-  // ---------------------------------------------------------------------------
-  // 12. Seed Inventory Items
-  // ---------------------------------------------------------------------------
-  console.log('📦 Seeding Inventory Items & Stock Quantities...');
-  const inventoryItemsData = [
-    { code: 'RAW-BEEF-01', name: 'Fresh Angus Beef Tenderloin Cut', unit: 'KG', cost: 16.50, stock: 45.0, minStock: 15.0, targetStock: 80.0, supplier: 'Apex Prime Meat & Poultry Co.', loc: coldLocation.id },
-    { code: 'RAW-CHICK-01', name: 'Fresh Boneless Chicken Breast', unit: 'KG', cost: 6.80, stock: 75.0, minStock: 25.0, targetStock: 120.0, supplier: 'Apex Prime Meat & Poultry Co.', loc: coldLocation.id },
-    { code: 'RAW-CHEESE-01', name: 'Whole Milk Mozzarella Block', unit: 'KG', cost: 8.50, stock: 32.0, minStock: 10.0, targetStock: 50.0, supplier: 'Dairy Crest Artisanal Provisions', loc: coldLocation.id },
-    { code: 'RAW-CHEESE-02', name: 'Aged Cheddar Cheese Slices', unit: 'PACK', cost: 5.20, stock: 28.0, minStock: 8.0, targetStock: 40.0, supplier: 'Dairy Crest Artisanal Provisions', loc: coldLocation.id },
-    { code: 'RAW-BUNS-01', name: 'Brioche Burger Buns 4-inch (Pack of 6)', unit: 'PACK', cost: 3.00, stock: 60.0, minStock: 20.0, targetStock: 100.0, supplier: 'Oceanic Global Spices & Dry Staples', loc: dryPantryLocation.id },
-    { code: 'RAW-FLOUR-01', name: 'Italian Tipo 00 Pizza Flour', unit: 'KG', cost: 1.65, stock: 150.0, minStock: 40.0, targetStock: 200.0, supplier: 'Oceanic Global Spices & Dry Staples', loc: dryPantryLocation.id },
-    { code: 'RAW-POTATO-01', name: 'Russet Potatoes for Fries', unit: 'KG', cost: 1.10, stock: 95.0, minStock: 30.0, targetStock: 150.0, supplier: 'Green Valley Fresh Produce LLC', loc: dryPantryLocation.id },
-    { code: 'RAW-TOMATO-01', name: 'Ripe Vine Tomatoes', unit: 'KG', cost: 1.80, stock: 42.0, minStock: 15.0, targetStock: 60.0, supplier: 'Green Valley Fresh Produce LLC', loc: coldLocation.id },
-    { code: 'RAW-RICE-01', name: 'Super Kernel Basmati Rice Premium', unit: 'KG', cost: 2.40, stock: 110.0, minStock: 35.0, targetStock: 180.0, supplier: 'Oceanic Global Spices & Dry Staples', loc: dryPantryLocation.id },
-    { code: 'RAW-OIL-01', name: 'Pure Vegetable Cooking Oil (16L Tin)', unit: 'TIN', cost: 28.50, stock: 12.0, minStock: 4.0, targetStock: 20.0, supplier: 'Oceanic Global Spices & Dry Staples', loc: dryPantryLocation.id },
-    { code: 'RAW-COFFEE-01', name: 'Espresso Roasted Coffee Beans', unit: 'KG', cost: 14.50, stock: 18.0, minStock: 5.0, targetStock: 30.0, supplier: 'Oceanic Global Spices & Dry Staples', loc: dryPantryLocation.id },
-    { code: 'PKG-BOX-01', name: 'Faraz Kraft Clamshell Burger Box', unit: 'PACK', cost: 8.50, stock: 35.0, minStock: 10.0, targetStock: 60.0, supplier: 'EcoPack Packaging & Disposables Hub', loc: packagingLocation.id },
-    { code: 'PKG-BAG-01', name: 'Heavy Duty Takeaway Handle Bags (100/pk)', unit: 'PACK', cost: 11.50, stock: 24.0, minStock: 8.0, targetStock: 40.0, supplier: 'EcoPack Packaging & Disposables Hub', loc: packagingLocation.id },
+  const rawIngredientsData = [
+    { name: 'Super Kernel Basmati Rice (50KG Bag)', itemCode: 'RAW-RICE-50KG', unit: 'BAG', minStockLevel: 5, currentStock: 18, costPerUnit: 16500, supplier: 'Al-Rehman Rice Traders & Millers' },
+    { name: 'Fresh Broiler Chicken (Whole/Cut)', itemCode: 'RAW-CHK-KG', unit: 'KG', minStockLevel: 25, currentStock: 85, costPerUnit: 620, supplier: 'Lahore Meat & Poultry Mart (Tollinton)' },
+    { name: 'Mutton Shinwari & Karahi Cut', itemCode: 'RAW-MUT-KG', unit: 'KG', minStockLevel: 15, currentStock: 42, costPerUnit: 2200, supplier: 'Lahore Meat & Poultry Mart (Tollinton)' },
+    { name: 'Prime Boneless Beef (Bihari/Seekh)', itemCode: 'RAW-BEEF-KG', unit: 'KG', minStockLevel: 10, currentStock: 30, costPerUnit: 1100, supplier: 'Lahore Meat & Poultry Mart (Tollinton)' },
+    { name: 'Pure Country Desi Ghee (16KG Tin)', itemCode: 'RAW-GHEE-16KG', unit: 'TIN', minStockLevel: 3, currentStock: 8, costPerUnit: 32000, supplier: 'Punjab Dairy & Village Milk Farms' },
+    { name: 'Fresh Buffalo Milk (Full Cream)', itemCode: 'RAW-MILK-LTR', unit: 'LTR', minStockLevel: 30, currentStock: 120, costPerUnit: 210, supplier: 'Punjab Dairy & Village Milk Farms' },
+    { name: 'Fine White Flour / Maida (40KG Bag)', itemCode: 'RAW-FLOUR-40KG', unit: 'BAG', minStockLevel: 4, currentStock: 14, costPerUnit: 5200, supplier: 'Metro Cash & Carry Pakistan' },
+    { name: 'Koyla / Hardwood BBQ Charcoal (25KG)', itemCode: 'RAW-KOYLA-25KG', unit: 'BAG', minStockLevel: 6, currentStock: 22, costPerUnit: 2600, supplier: 'Metro Cash & Carry Pakistan' },
+    { name: 'Fresh Tomatoes & Ginger Garlic', itemCode: 'RAW-VEG-KG', unit: 'KG', minStockLevel: 20, currentStock: 65, costPerUnit: 180, supplier: 'Metro Cash & Carry Pakistan' },
+    { name: 'Cooking Oil (Habib/Sufi 16L Tin)', itemCode: 'RAW-OIL-16L', unit: 'TIN', minStockLevel: 5, currentStock: 15, costPerUnit: 8400, supplier: 'Metro Cash & Carry Pakistan' },
   ];
 
-  const invItemMap = new Map<string, any>();
-  for (const item of inventoryItemsData) {
-    const sup = supplierMap.get(item.supplier);
-    const inv = await prisma.inventoryItem.upsert({
-      where: {
-        restaurantId_itemCode: {
-          restaurantId: restaurant.id,
-          itemCode: item.code,
-        },
-      },
-      update: {
-        name: item.name,
-        unit: item.unit,
-        costPerUnit: item.cost,
-        currentStock: item.stock,
-        minStockLevel: item.minStock,
-        targetStockLevel: item.targetStock,
-        supplierId: sup ? sup.id : undefined,
-        locationId: item.loc,
-        isActive: true,
-      },
-      create: {
+  for (const item of rawIngredientsData) {
+    const supp = supplierMap.get(item.supplier);
+    await prisma.inventoryItem.create({
+      data: {
         restaurantId: restaurant.id,
-        itemCode: item.code,
+        supplierId: supp?.id,
+        locationId: mainLocation.id,
+        itemCode: item.itemCode,
         name: item.name,
         unit: item.unit,
-        costPerUnit: item.cost,
-        currentStock: item.stock,
-        minStockLevel: item.minStock,
-        targetStockLevel: item.targetStock,
-        supplierId: sup ? sup.id : undefined,
-        locationId: item.loc,
+        minStockLevel: item.minStockLevel,
+        currentStock: item.currentStock,
+        costPerUnit: item.costPerUnit,
         isActive: true,
       },
     });
-    invItemMap.set(item.code, inv);
   }
-  console.log(`✅ Seeded ${invItemMap.size} inventory items across suppliers & stock locations`);
+  console.log(`   ✅ Seeded ${suppliersData.length} suppliers and ${rawIngredientsData.length} raw inventory stock items`);
 
   // ---------------------------------------------------------------------------
-  // 13. Seed Recipes (MenuItemIngredient linkages)
+  // 11. Seed Delivery Zones (Lahore Areas with PKR Fees)
   // ---------------------------------------------------------------------------
-  console.log('🥘 Seeding Recipe formulations & BOMs...');
-  const burgerItem = menuItemMap.get('BGR-001');
-  const tenderloin = invItemMap.get('RAW-BEEF-01');
-  const burgerBun = invItemMap.get('RAW-BUNS-01');
-  const cheddar = invItemMap.get('RAW-CHEESE-02');
-  const potatoes = invItemMap.get('RAW-POTATO-01');
+  console.log('\n🛵 [10/10] Seeding Delivery Zones, Customers, Promotions & Shift...');
+  const deliveryZonesData = [
+    { name: 'Gulberg (Zones I, II, III & Main Boulevard)', deliveryCharge: 100, estimatedMinutes: 35 },
+    { name: 'DHA Lahore (Phases 1 to 6)', deliveryCharge: 250, estimatedMinutes: 50 },
+    { name: 'Model Town, Garden Town & Faisal Town', deliveryCharge: 150, estimatedMinutes: 40 },
+    { name: 'Lahore Cantt & Cavalry Ground', deliveryCharge: 200, estimatedMinutes: 45 },
+    { name: 'Johar Town & Canal Road', deliveryCharge: 250, estimatedMinutes: 55 },
+  ];
 
-  if (burgerItem && tenderloin && burgerBun && cheddar && potatoes) {
-    const existingIng = await prisma.menuItemIngredient.findFirst({
-      where: { menuItemId: burgerItem.id },
-    });
-    if (!existingIng) {
-      await prisma.menuItemIngredient.createMany({
-        data: [
-          { restaurantId: restaurant.id, menuItemId: burgerItem.id, inventoryItemId: tenderloin.id, quantity: 0.20, wastePercentage: 2 },
-          { restaurantId: restaurant.id, menuItemId: burgerItem.id, inventoryItemId: burgerBun.id, quantity: 0.166, wastePercentage: 0 },
-          { restaurantId: restaurant.id, menuItemId: burgerItem.id, inventoryItemId: cheddar.id, quantity: 0.05, wastePercentage: 0 },
-          { restaurantId: restaurant.id, menuItemId: burgerItem.id, inventoryItemId: potatoes.id, quantity: 0.20, wastePercentage: 5 },
-        ],
-      });
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 14. Seed Purchase Orders & Receiving Logs & Stock Movements
-  // ---------------------------------------------------------------------------
-  console.log('📑 Seeding Purchase Orders & Receiving Logs...');
-  const apexSupplier = supplierMap.get('Apex Prime Meat & Poultry Co.');
-  if (apexSupplier && tenderloin) {
-    const po1 = await prisma.purchaseOrder.upsert({
-      where: {
-        restaurantId_orderNumber: { restaurantId: restaurant.id, orderNumber: 'PO-2026-001' },
-      },
-      update: { status: 'RECEIVED' },
-      create: {
+  for (const dz of deliveryZonesData) {
+    await prisma.deliveryZone.create({
+      data: {
         restaurantId: restaurant.id,
-        supplierId: apexSupplier.id,
-        locationId: coldLocation.id,
-        orderNumber: 'PO-2026-001',
-        invoiceNumber: 'INV-APEX-98211',
-        status: 'RECEIVED',
-        subtotal: 495.00,
-        taxAmount: 0.00,
-        totalCost: 495.00,
-        totalAmount: 495.00,
-        receivedAt: new Date(Date.now() - 86400000),
-        notes: 'Delivered in temperature controlled vehicle at 2°C. Quality approved.',
-        createdById: managerUser.id,
-      },
-    });
-
-    const poItem1 = await prisma.purchaseOrderItem.findFirst({
-      where: { purchaseOrderId: po1.id },
-    });
-    if (!poItem1) {
-      await prisma.purchaseOrderItem.create({
-        data: {
-          purchaseOrderId: po1.id,
-          inventoryItemId: tenderloin.id,
-          quantity: 30.0,
-          quantityReceived: 30.0,
-          unitCost: 16.50,
-          subtotal: 495.00,
-          totalCost: 495.00,
-        },
-      });
-
-      // Stock Movement Log
-      await prisma.stockMovement.create({
-        data: {
-          restaurantId: restaurant.id,
-          inventoryItemId: tenderloin.id,
-          toLocationId: coldLocation.id,
-          type: StockMovementType.PURCHASE_RECEIPT,
-          quantityChange: 30.0,
-          balanceAfter: tenderloin.currentStock,
-          unitCost: 16.50,
-          totalCost: 495.00,
-          referenceType: 'PURCHASE_ORDER',
-          referenceId: po1.id,
-          reason: 'Supplier Delivery Receipt PO-2026-001',
-          createdById: managerUser.id,
-        },
-      });
-    }
-
-    // Purchase Order 2: Draft / Ordered
-    await prisma.purchaseOrder.upsert({
-      where: {
-        restaurantId_orderNumber: { restaurantId: restaurant.id, orderNumber: 'PO-2026-002' },
-      },
-      update: { status: 'ORDERED' },
-      create: {
-        restaurantId: restaurant.id,
-        supplierId: apexSupplier.id,
-        locationId: coldLocation.id,
-        orderNumber: 'PO-2026-002',
-        status: 'ORDERED',
-        subtotal: 340.00,
-        totalCost: 340.00,
-        totalAmount: 340.00,
-        orderedAt: new Date(),
-        expectedDeliveryDate: new Date(Date.now() + 86400000),
-        notes: 'Scheduled for tomorrow morning delivery.',
-        createdById: managerUser.id,
+        name: dz.name,
+        deliveryCharge: dz.deliveryCharge,
+        estimatedMinutes: dz.estimatedMinutes,
+        isActive: true,
       },
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // 15. Seed Customers & Addresses
-  // ---------------------------------------------------------------------------
-  console.log('👥 Seeding Customers & Delivery Addresses...');
+  // Seed Customers
   const customersData = [
-    {
-      name: 'Ahmed Khan',
-      phone: '+923005551122',
-      notes: 'VIP Regular Customer. Prefers well-done steak and extra spicy curries.',
-      address: '12-C Gulberg III, Main Boulevard, Lahore',
-      landmark: 'Near Siddiq Trade Center',
-    },
-    {
-      name: 'Fatima Zahra',
-      phone: '+923214442233',
-      notes: 'Frequent family diner. Loves the thin crust pizzas.',
-      address: 'House 45, Sector Y, Phase 3, DHA, Lahore',
-      landmark: 'Opposite Sector Y Commercial Park',
-    },
-    {
-      name: 'Usman Tariq',
-      phone: '+923337778899',
-      notes: 'Corporate client ordering weekday lunches.',
-      address: 'Suite 402, Al-Hafeez Executive Tower, Ferozepur Road',
-      landmark: '4th Floor Executive Wing',
-    },
-    {
-      name: 'Sarah Jenkins',
-      phone: '+15559876543',
-      notes: 'Loves fresh salads and iced caramel macchiatos.',
-      address: '742 Evergreen Terrace, Apt 5B, New York, NY 10025',
-      landmark: 'Corner of 74th & Amsterdam',
-    },
-    {
-      name: 'Michael Chang',
-      phone: '+15552345678',
-      notes: 'Regular takeaway customer.',
-      address: '120 Riverside Drive, Suite 8A, New York, NY 10024',
-      landmark: 'Near Riverside Park Entrance',
-    },
-    {
-      name: 'Bilal Hassan',
-      phone: '+923019998877',
-      notes: 'Orders large Biryani platters on weekends.',
-      address: '88-G, Johar Town, Phase 1, Lahore',
-      landmark: 'Near Shaukat Khanum Hospital',
-    },
+    { name: 'Chaudhry Usman Tariq', phone: '+923008451234', address: 'House 42, Block H, Gulberg II, Lahore', notes: 'VIP Guest, prefers Desi Ghee preparation and less spicy' },
+    { name: 'Dr. Fatima Noor', phone: '+923214567890', address: 'Bungalow 18, Sector B, Phase 5 DHA, Lahore', notes: 'Regular family dining patron' },
+    { name: 'Malik Zeeshan Ahmed', phone: '+923334219876', address: 'Flat 304, Mall View Heights, Model Town, Lahore', notes: 'Frequent takeaway customer' },
+    { name: 'Advocate Salman Qureshi', phone: '+923009988776', address: 'House 112, Saint Johns Park, Cantt, Lahore', notes: 'Prefers Rooftop Koyla BBQ seating' },
   ];
 
-  const customerMap = new Map<string, any>();
   for (const c of customersData) {
-    const customer = await prisma.customer.upsert({
-      where: {
-        restaurantId_phone: {
-          restaurantId: restaurant.id,
-          phone: c.phone,
-        },
-      },
-      update: { name: c.name, notes: c.notes, isActive: true },
-      create: {
+    await prisma.customer.create({
+      data: {
         restaurantId: restaurant.id,
         name: c.name,
         phone: c.phone,
         notes: c.notes,
+        addresses: {
+          create: {
+            address: c.address,
+            isDefault: true,
+          },
+        },
+      },
+    });
+  }
+
+  // Seed Promotions (PKR discounts)
+  await prisma.promotion.create({
+    data: {
+      restaurantId: restaurant.id,
+      code: 'JASHAN15',
+      name: 'Jashan-e-Baharan 15% Off',
+      description: '15% instant discount on orders above Rs. 3,000',
+      type: PromotionType.PERCENTAGE,
+      discountValue: 15,
+      minOrderAmount: 3000,
+      maxDiscountAmount: 1000,
+      targetType: PromotionTargetType.ORDER,
+      startDate: new Date(Date.now() - 86400000 * 7),
+      endDate: new Date(Date.now() + 86400000 * 30),
+      isActive: true,
+    },
+  });
+
+  await prisma.promotion.create({
+    data: {
+      restaurantId: restaurant.id,
+      code: 'BBQFEAST',
+      name: 'Weekend Royal BBQ Feast',
+      description: 'Flat Rs. 500 off on BBQ platters above Rs. 4,000',
+      type: PromotionType.FIXED_AMOUNT,
+      discountValue: 500,
+      minOrderAmount: 4000,
+      targetType: PromotionTargetType.ORDER,
+      startDate: new Date(Date.now() - 86400000 * 5),
+      endDate: new Date(Date.now() + 86400000 * 20),
+      isActive: true,
+    },
+  });
+
+  // Seed Expense Categories & Initial Petty Cash Records
+  const expenseCatData = [
+    { name: 'Daily Sabzi & Mandi Vegetables', description: 'Fresh vegetables, ginger, garlic, tomatoes and mint from market' },
+    { name: 'LPG Commercial Cylinders', description: 'Gas cylinder refills for kitchen stoves' },
+    { name: 'BBQ Koyla & Charcoal Sacks', description: 'Hardwood koyla for live barbecue grills' },
+    { name: 'Generator Diesel & Fuel', description: 'Load shedding backup generator maintenance and diesel fuel' },
+    { name: 'Staff Welfare & Evening Tea', description: 'Daily tea, milk, and snacks for restaurant crew' },
+  ];
+
+  for (let ecIdx = 0; ecIdx < expenseCatData.length; ecIdx++) {
+    const ec = expenseCatData[ecIdx];
+    const cat = await prisma.expenseCategory.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: ec.name,
+        description: ec.description,
         isActive: true,
       },
     });
-    customerMap.set(c.phone, customer);
 
-    const addr = await prisma.customerAddress.findFirst({
-      where: { customerId: customer.id },
-    });
-    if (!addr) {
-      await prisma.customerAddress.create({
-        data: {
-          customerId: customer.id,
-          address: c.address,
-          landmark: c.landmark,
-          isDefault: true,
-        },
-      });
-    }
-  }
-  console.log(`✅ Seeded ${customerMap.size} customer profiles with verified delivery addresses`);
-
-  // ---------------------------------------------------------------------------
-  // 16. Seed Loyalty Program & Tiers & Accounts
-  // ---------------------------------------------------------------------------
-  console.log('💎 Seeding Loyalty Program & Rewards Tiers...');
-  await prisma.loyaltyProgram.upsert({
-    where: { restaurantId: restaurant.id },
-    update: {
-      isEnabled: true,
-      programName: 'Faraz Rewards Club',
-      pointsPerCurrencyUnit: 1.0,
-      redemptionRate: 0.02, // 50 points = $1.00
-      minPointsToRedeem: 50,
-      roundingMode: LoyaltyRoundingMode.FLOOR,
-    },
-    create: {
-      restaurantId: restaurant.id,
-      isEnabled: true,
-      programName: 'Faraz Rewards Club',
-      pointsPerCurrencyUnit: 1.0,
-      redemptionRate: 0.02,
-      minPointsToRedeem: 50,
-      roundingMode: LoyaltyRoundingMode.FLOOR,
-    },
-  });
-
-  const tiersData = [
-    { name: 'Bronze Member', minPoints: 0, multiplier: 1.0, discount: 0, color: '#CD7F32', order: 1 },
-    { name: 'Silver Gourmet', minPoints: 250, multiplier: 1.2, discount: 5.0, color: '#C0C0C0', order: 2 },
-    { name: 'Gold Epicurean', minPoints: 750, multiplier: 1.5, discount: 10.0, color: '#FFD700', order: 3 },
-    { name: 'Platinum Elite', minPoints: 2000, multiplier: 2.0, discount: 15.0, color: '#E5E4E2', order: 4 },
-  ];
-
-  const tierMap = new Map<string, any>();
-  for (const t of tiersData) {
-    const tier = await prisma.loyaltyTier.upsert({
-      where: {
-        restaurantId_name: { restaurantId: restaurant.id, name: t.name },
-      },
-      update: { minPoints: t.minPoints, multiplier: t.multiplier, discountPercentage: t.discount, color: t.color, sortOrder: t.order },
-      create: { restaurantId: restaurant.id, name: t.name, minPoints: t.minPoints, multiplier: t.multiplier, discountPercentage: t.discount, color: t.color, sortOrder: t.order },
-    });
-    tierMap.set(t.name, tier);
-  }
-
-  // Create loyalty accounts with balances
-  const goldTier = tierMap.get('Gold Epicurean');
-  const silverTier = tierMap.get('Silver Gourmet');
-
-  const ahmedCustomer = customerMap.get('+923005551122');
-  if (ahmedCustomer && goldTier) {
-    const account = await prisma.loyaltyAccount.upsert({
-      where: { customerId: ahmedCustomer.id },
-      update: { pointsBalance: 850, lifetimePoints: 1200, tierId: goldTier.id },
-      create: {
-        restaurantId: restaurant.id,
-        customerId: ahmedCustomer.id,
-        tierId: goldTier.id,
-        pointsBalance: 850,
-        lifetimePoints: 1200,
-        totalRedeemedPoints: 350,
-      },
-    });
-
-    const tx = await prisma.loyaltyTransaction.findFirst({
-      where: { accountId: account.id },
-    });
-    if (!tx) {
-      await prisma.loyaltyTransaction.create({
+    if (ec.name.includes('Sabzi')) {
+      await prisma.expense.create({
         data: {
           restaurantId: restaurant.id,
-          accountId: account.id,
-          customerId: ahmedCustomer.id,
-          type: LoyaltyTransactionType.EARN,
-          points: 150,
-          pointsBalanceAfter: 850,
-          monetaryValue: 3.00,
-          reason: 'Points earned on dining order ORD-2026-001',
-          createdById: cashierUser.id,
+          categoryId: cat.id,
+          expenseNumber: 'EXP-2026-001',
+          createdById: managerUser.id,
+          businessDate: todayStr,
+          amount: 4500,
+          paymentMethod: 'CASH',
+          description: 'Morning vegetable procurement from Badami Bagh Sabzi Mandi',
+          status: ExpenseStatus.RECORDED,
         },
       });
     }
   }
 
-  const fatimaCustomer = customerMap.get('+923214442233');
-  if (fatimaCustomer && silverTier) {
-    await prisma.loyaltyAccount.upsert({
-      where: { customerId: fatimaCustomer.id },
-      update: { pointsBalance: 320, lifetimePoints: 450, tierId: silverTier.id },
-      create: {
-        restaurantId: restaurant.id,
-        customerId: fatimaCustomer.id,
-        tierId: silverTier.id,
-        pointsBalance: 320,
-        lifetimePoints: 450,
-        totalRedeemedPoints: 130,
-      },
-    });
-  }
-  console.log(`✅ Seeded loyalty program, 4 tier levels, and member loyalty ledgers`);
-
-  // ---------------------------------------------------------------------------
-  // 17. Seed Marketing Promotions & Campaign Vouchers
-  // ---------------------------------------------------------------------------
-  console.log('🏷️  Seeding Marketing Promotions & Discount Campaigns...');
-  await prisma.promotion.upsert({
-    where: {
-      restaurantId_code: { restaurantId: restaurant.id, code: 'WELCOME10' },
-    },
-    update: { discountValue: 10, isActive: true },
-    create: {
-      restaurantId: restaurant.id,
-      name: 'New Guest Welcome 10% Off',
-      code: 'WELCOME10',
-      description: '10% discount on entire bill for dine-in or takeaway',
-      type: PromotionType.PERCENTAGE,
-      targetType: PromotionTargetType.ORDER,
-      discountValue: 10.0,
-      minOrderAmount: 20.0,
-      isActive: true,
-      isAutoApply: false,
-    },
-  });
-
-  await prisma.promotion.upsert({
-    where: {
-      restaurantId_code: { restaurantId: restaurant.id, code: 'BURGERFEST20' },
-    },
-    update: { discountValue: 20, isActive: true },
-    create: {
-      restaurantId: restaurant.id,
-      name: 'Weekend Burger Mania 20% Off',
-      code: 'BURGERFEST20',
-      description: '20% off all gourmet burgers and sandwiches',
-      type: PromotionType.PERCENTAGE,
-      targetType: PromotionTargetType.CATEGORY,
-      discountValue: 20.0,
-      isActive: true,
-    },
-  });
-  console.log(`✅ Seeded active marketing promo campaigns`);
-
-  // ---------------------------------------------------------------------------
-  // 18. Seed Cashier Shifts & Cash Transactions
-  // ---------------------------------------------------------------------------
-  console.log('💰 Seeding Cashier Shifts & Drawer Records...');
-  // Closed shift for yesterday
-  const closedShift = await prisma.cashierShift.upsert({
-    where: { id: 'shift-yesterday-001' },
-    update: {},
-    create: {
-      id: 'shift-yesterday-001',
+  // Seed Default Register Shift
+  await prisma.cashierShift.create({
+    data: {
       restaurantId: restaurant.id,
       cashierId: cashierUser.id,
-      registerName: 'Register 1 - Front Counter',
-      businessDate: yesterdayStr,
-      status: ShiftStatus.CLOSED,
-      openedAt: new Date(Date.now() - 86400000),
-      closedAt: new Date(Date.now() - 50400000),
-      openingCash: 200.00,
-      cashSales: 1250.00,
-      cashRefunds: 0.00,
-      cashDrops: 1000.00,
-      expectedClosingCash: 450.00,
-      actualClosingCash: 450.00,
-      variance: 0.00,
-      closedById: managerUser.id,
-      notes: 'Evening shift balanced perfectly with zero variance.',
-    },
-  });
-
-  // Open shift for today
-  const activeShift = await prisma.cashierShift.upsert({
-    where: { id: 'shift-today-001' },
-    update: { status: ShiftStatus.OPEN },
-    create: {
-      id: 'shift-today-001',
-      restaurantId: restaurant.id,
-      cashierId: cashierUser.id,
-      registerName: 'Register 1 - Front Counter',
+      registerName: 'Main Cashier Terminal (TER-01)',
       businessDate: todayStr,
       status: ShiftStatus.OPEN,
-      openedAt: new Date(),
-      openingCash: 200.00,
-      cashSales: 380.00,
-      cashRefunds: 0.00,
-      cashDrops: 0.00,
-      notes: 'Morning shift currently active.',
+      openingCash: 15000.0,
+      notes: 'Initial morning register shift with Rs. 15,000 float',
+      openedAt: new Date(Date.now() - 1000 * 60 * 60 * 3),
     },
   });
 
-  // Cash float transaction
-  const existingTx = await prisma.cashTransaction.findFirst({
-    where: { shiftId: activeShift.id },
-  });
-  if (!existingTx) {
-    await prisma.cashTransaction.create({
+  // Seed Sample Table Orders for realistic initial UI state
+  const occupiedTable = tableMap.get('T-02');
+  const chickenKarahi = menuItemMap.get('Chicken Desi Ghee Karahi');
+  const malaiBoti = menuItemMap.get('Chicken Malai Boti');
+  const roghniNaan = menuItemMap.get('Special Roghni Naan');
+
+  if (occupiedTable && chickenKarahi && malaiBoti && roghniNaan) {
+    const sampleOrder = await prisma.order.create({
       data: {
         restaurantId: restaurant.id,
-        shiftId: activeShift.id,
-        type: CashTransactionType.OPENING_FLOAT,
-        amount: 200.00,
-        reason: 'Initial opening cash drawer float',
-        createdById: cashierUser.id,
-      },
-    });
-  }
-  console.log(`✅ Seeded yesterday's closed shift and today's active drawer shift`);
-
-  // ---------------------------------------------------------------------------
-  // 19. Seed Operational Expenses
-  // ---------------------------------------------------------------------------
-  console.log('💸 Seeding Operational Expenses & Petty Cash Logs...');
-  const kitchenCat = await prisma.expenseCategory.findFirst({
-    where: { restaurantId: restaurant.id, name: 'Kitchen & Raw Materials' },
-  });
-  const staffMealsCat = await prisma.expenseCategory.findFirst({
-    where: { restaurantId: restaurant.id, name: 'Staff Meals & Welfare' },
-  });
-  const pettyCashCat = await prisma.expenseCategory.findFirst({
-    where: { restaurantId: restaurant.id, name: 'Petty Cash & Maintenance' },
-  });
-
-  if (kitchenCat) {
-    await prisma.expense.upsert({
-      where: {
-        restaurantId_expenseNumber: { restaurantId: restaurant.id, expenseNumber: 'EXP-2026-001' },
-      },
-      update: {},
-      create: {
-        restaurantId: restaurant.id,
-        categoryId: kitchenCat.id,
-        shiftId: activeShift.id,
-        expenseNumber: 'EXP-2026-001',
-        amount: 24.50,
-        paymentMethod: PaymentMethod.CASH,
-        status: ExpenseStatus.RECORDED,
-        businessDate: todayStr,
-        description: 'Emergency lemons and fresh coriander purchase from local market',
-        notes: 'Receipt attached from Local Fresh Bazaar',
-        createdById: cashierUser.id,
-      },
-    });
-  }
-
-  if (staffMealsCat) {
-    await prisma.expense.upsert({
-      where: {
-        restaurantId_expenseNumber: { restaurantId: restaurant.id, expenseNumber: 'EXP-2026-002' },
-      },
-      update: {},
-      create: {
-        restaurantId: restaurant.id,
-        categoryId: staffMealsCat.id,
-        shiftId: activeShift.id,
-        expenseNumber: 'EXP-2026-002',
-        amount: 35.00,
-        paymentMethod: PaymentMethod.CASH,
-        status: ExpenseStatus.RECORDED,
-        businessDate: todayStr,
-        description: 'Staff afternoon tea, bakery snacks & refreshments',
-        createdById: cashierUser.id,
-      },
-    });
-  }
-
-  if (pettyCashCat) {
-    await prisma.expense.upsert({
-      where: {
-        restaurantId_expenseNumber: { restaurantId: restaurant.id, expenseNumber: 'EXP-2026-003' },
-      },
-      update: {},
-      create: {
-        restaurantId: restaurant.id,
-        categoryId: pettyCashCat.id,
-        expenseNumber: 'EXP-2026-003',
-        amount: 65.00,
-        paymentMethod: PaymentMethod.BANK_TRANSFER,
-        status: ExpenseStatus.RECORDED,
-        businessDate: yesterdayStr,
-        description: 'Commercial dishwasher water filter replacement plumbing service',
-        createdById: managerUser.id,
-      },
-    });
-  }
-  console.log(`✅ Seeded operational expense records and petty cash entries`);
-
-  // ---------------------------------------------------------------------------
-  // 20. Seed Reservations & Table Bookings
-  // ---------------------------------------------------------------------------
-  console.log('📅 Seeding Reservations & Table Bookings...');
-  const tableT03 = tableMap.get('T-03');
-  const tableF02 = tableMap.get('F-02');
-
-  const resDate = new Date();
-  const resStartTime = new Date(resDate.setHours(19, 30, 0, 0));
-  const resEndTime = new Date(resDate.getTime() + 90 * 60000);
-
-  await prisma.reservation.upsert({
-    where: {
-      restaurantId_reservationCode: { restaurantId: restaurant.id, reservationCode: 'RES-2026-001' },
-    },
-    update: { status: ReservationStatus.CONFIRMED },
-    create: {
-      restaurantId: restaurant.id,
-      reservationCode: 'RES-2026-001',
-      customerId: ahmedCustomer ? ahmedCustomer.id : undefined,
-      customerName: 'Ahmed Khan',
-      customerPhone: '+923005551122',
-      customerEmail: 'ahmed.khan@example.com',
-      guestCount: 4,
-      tableId: tableT03 ? tableT03.id : undefined,
-      reservationDate: new Date(),
-      startTime: resStartTime,
-      endTime: resEndTime,
-      durationMinutes: 90,
-      status: ReservationStatus.CONFIRMED,
-      specialRequests: 'Window side seating requested. Celebrating wedding anniversary.',
-      createdById: cashierUser.id,
-    },
-  });
-
-  const resDate2 = new Date();
-  const resStartTime2 = new Date(resDate2.setHours(20, 0, 0, 0));
-  const resEndTime2 = new Date(resDate2.getTime() + 90 * 60000);
-
-  await prisma.reservation.upsert({
-    where: {
-      restaurantId_reservationCode: { restaurantId: restaurant.id, reservationCode: 'RES-2026-002' },
-    },
-    update: { status: ReservationStatus.CONFIRMED },
-    create: {
-      restaurantId: restaurant.id,
-      reservationCode: 'RES-2026-002',
-      customerId: fatimaCustomer ? fatimaCustomer.id : undefined,
-      customerName: 'Fatima Zahra',
-      customerPhone: '+923214442233',
-      guestCount: 6,
-      tableId: tableF02 ? tableF02.id : undefined,
-      reservationDate: new Date(),
-      startTime: resStartTime2,
-      endTime: resEndTime2,
-      durationMinutes: 90,
-      status: ReservationStatus.CONFIRMED,
-      specialRequests: 'Require 1 baby high-chair.',
-      createdById: cashierUser.id,
-    },
-  });
-  console.log(`✅ Seeded dinner table reservations with customer linkages`);
-
-  // ---------------------------------------------------------------------------
-  // 21. Seed Dine-In Active Table Orders, Takeaway & Delivery Orders
-  // ---------------------------------------------------------------------------
-  console.log('🍽️  Seeding Active & Historical Orders across Dine-In, Takeaway, and Delivery...');
-
-  const tableT02 = tableMap.get('T-02');
-  const pizzaItem = menuItemMap.get('PIZ-001');
-  const pastaItem = menuItemMap.get('PAS-001');
-  const wingsItem = menuItemMap.get('APP-001');
-  const biryaniItem = menuItemMap.get('DES-002');
-  const bevItem = menuItemMap.get('BEV-001');
-  const lavaCake = menuItemMap.get('DST-001');
-
-  // --- A. Active Dine-In Table Order on Table T-02 ---
-  if (tableT02 && burgerItem && pizzaItem && bevItem) {
-    const tableOrder1 = await prisma.tableOrder.upsert({
-      where: {
-        restaurantId_orderCode: { restaurantId: restaurant.id, orderCode: 'TBL-T02-001' },
-      },
-      update: { status: TableOrderStatus.ACTIVE },
-      create: {
-        restaurantId: restaurant.id,
-        tableId: tableT02.id,
-        orderCode: 'TBL-T02-001',
-        guestCount: 3,
-        status: TableOrderStatus.ACTIVE,
-        totalAmount: 34.48,
-        openedByUserId: userMap.get('waiter_alex').id,
-        openedAt: new Date(Date.now() - 25 * 60000), // 25 mins ago
-      },
-    });
-
-    const dineInOrder1 = await prisma.order.upsert({
-      where: {
-        restaurantId_orderCode: { restaurantId: restaurant.id, orderCode: 'ORD-DINE-101' },
-      },
-      update: { status: OrderStatus.PREPARING },
-      create: {
-        restaurantId: restaurant.id,
-        orderCode: 'ORD-DINE-101',
+        tableId: occupiedTable.id,
+        orderCode: 'ORD-LHR-001',
         businessDate: todayStr,
         orderType: OrderType.DINE_IN,
         status: OrderStatus.PREPARING,
         paymentStatus: OrderPaymentStatus.UNPAID,
-        tableId: tableT02.id,
-        tableOrderId: tableOrder1.id,
-        guestCount: 3,
-        subtotal: 32.48,
-        taxRate: 8.875,
-        taxAmount: 2.88,
-        grandTotal: 35.36,
-        createdById: userMap.get('waiter_alex').id,
-        notes: 'Table 2 - Guests request hot sauce on the side',
-      },
-    });
-
-    const existingItems1 = await prisma.orderItem.findFirst({
-      where: { orderId: dineInOrder1.id },
-    });
-    if (!existingItems1) {
-      await prisma.orderItem.createMany({
-        data: [
-          {
-            orderId: dineInOrder1.id,
-            menuItemId: burgerItem.id,
-            itemName: burgerItem.name,
-            quantity: 2,
-            unitPrice: 12.99,
-            itemGrossTotal: 25.98,
-            itemNetTotal: 25.98,
-            status: OrderItemStatus.ACTIVE,
-            kitchenStatus: ItemKitchenStatus.PREPARING,
-          },
-          {
-            orderId: dineInOrder1.id,
-            menuItemId: bevItem.id,
-            itemName: bevItem.name,
-            quantity: 2,
-            unitPrice: 4.50,
-            itemGrossTotal: 9.00,
-            itemNetTotal: 9.00,
-            status: OrderItemStatus.ACTIVE,
-            kitchenStatus: ItemKitchenStatus.READY,
-          },
-        ],
-      });
-    }
-  }
-
-  // --- B. Active Takeaway Order ---
-  if (wingsItem && pastaItem && lavaCake) {
-    const takeawayOrder1 = await prisma.takeawayOrder.upsert({
-      where: {
-        restaurantId_orderCode: { restaurantId: restaurant.id, orderCode: 'TKW-2026-101' },
-      },
-      update: { status: TakeawayOrderStatus.READY },
-      create: {
-        restaurantId: restaurant.id,
-        tokenNumber: 101,
-        orderCode: 'TKW-2026-101',
-        businessDate: todayStr,
-        customerName: 'Zainab Bibi',
-        customerPhone: '+923126665544',
-        status: TakeawayOrderStatus.READY,
-        paymentStatus: TakeawayPaymentStatus.PAID,
-        paymentMethod: 'CARD',
-        subtotal: 30.97,
-        taxRate: 8.875,
-        taxAmount: 2.75,
-        totalAmount: 33.72,
-        specialInstructions: 'Pack with extra cutlery and paper napkins.',
+        guestCount: 4,
+        subtotal: 3510,
+        taxAmount: 561.6,
+        grandTotal: 4071.6,
+        notes: 'Table 2 VIP family - Desi ghee karahi teekha',
         createdById: cashierUser.id,
+        createdAt: new Date(Date.now() - 1000 * 60 * 20),
       },
     });
 
-    const existingTkItems = await prisma.takeawayOrderItem.findFirst({
-      where: { takeawayOrderId: takeawayOrder1.id },
-    });
-    if (!existingTkItems) {
-      await prisma.takeawayOrderItem.createMany({
-        data: [
-          { takeawayOrderId: takeawayOrder1.id, menuItemId: wingsItem.id, name: wingsItem.name, quantity: 1, unitPrice: 8.99, subtotal: 8.99 },
-          { takeawayOrderId: takeawayOrder1.id, menuItemId: pastaItem.id, name: pastaItem.name, quantity: 1, unitPrice: 13.99, subtotal: 13.99 },
-          { takeawayOrderId: takeawayOrder1.id, menuItemId: lavaCake.id, name: lavaCake.name, quantity: 1, unitPrice: 7.99, subtotal: 7.99 },
-        ],
-      });
-    }
-
-    // Also unified order entry
-    const unifiedTkOrder = await prisma.order.upsert({
-      where: {
-        restaurantId_orderCode: { restaurantId: restaurant.id, orderCode: 'ORD-TKW-101' },
-      },
-      update: { status: OrderStatus.READY },
-      create: {
-        restaurantId: restaurant.id,
-        orderCode: 'ORD-TKW-101',
-        businessDate: todayStr,
-        orderType: OrderType.TAKEAWAY,
-        status: OrderStatus.READY,
-        paymentStatus: OrderPaymentStatus.PAID,
-        paymentMethod: 'CARD',
-        tokenNumber: 101,
-        customerName: 'Zainab Bibi',
-        customerPhone: '+923126665544',
-        subtotal: 30.97,
-        taxRate: 8.875,
-        taxAmount: 2.75,
-        grandTotal: 33.72,
-        paidAmount: 33.72,
-        createdById: cashierUser.id,
-      },
-    });
-
-    const existingUnifiedPayment = await prisma.payment.findFirst({
-      where: { orderId: unifiedTkOrder.id },
-    });
-    if (!existingUnifiedPayment) {
-      await prisma.payment.create({
-        data: {
-          restaurantId: restaurant.id,
-          orderId: unifiedTkOrder.id,
-          shiftId: activeShift.id,
-          paymentMethod: PaymentMethod.CARD,
-          amount: 33.72,
-          amountTendered: 33.72,
-          cardBrand: 'VISA',
-          cardLast4: '4242',
-          status: PaymentStatus.COMPLETED,
-          createdById: cashierUser.id,
-        },
-      });
-    }
-  }
-
-  // --- C. Active Delivery Order with Assigned Rider ---
-  const standardZone = await prisma.deliveryZone.findFirst({
-    where: { restaurantId: restaurant.id, name: { contains: 'Standard' } },
-  });
-
-  if (biryaniItem && burgerItem && riderAli && standardZone) {
-    const deliveryOrder1 = await prisma.deliveryOrder.upsert({
-      where: {
-        restaurantId_orderCode: { restaurantId: restaurant.id, orderCode: 'DEL-2026-201' },
-      },
-      update: { status: DeliveryOrderStatus.DISPATCHED },
-      create: {
-        restaurantId: restaurant.id,
-        orderCode: 'DEL-2026-201',
-        businessDate: todayStr,
-        customerId: ahmedCustomer ? ahmedCustomer.id : undefined,
-        customerName: 'Ahmed Khan',
-        customerPhone: '+923005551122',
-        deliveryAddress: '12-C Gulberg III, Main Boulevard, Lahore',
-        landmark: 'Near Siddiq Trade Center',
-        deliveryZoneId: standardZone.id,
-        deliveryZoneName: standardZone.name,
-        deliveryCharge: 3.50,
-        packagingCharge: 1.50,
-        subtotal: 28.98,
-        taxRate: 8.875,
-        taxAmount: 2.57,
-        totalAmount: 36.55,
-        paymentStatus: DeliveryPaymentStatus.PENDING,
-        paymentMethod: 'CASH',
-        status: DeliveryOrderStatus.DISPATCHED,
-        riderId: riderAli.id,
-        assignedAt: new Date(Date.now() - 15 * 60000),
-        dispatchedAt: new Date(Date.now() - 8 * 60000),
-        specialInstructions: 'Ring bell twice upon arrival. Collect cash on delivery.',
-        createdById: cashierUser.id,
-      },
-    });
-
-    const existingDelItems = await prisma.deliveryOrderItem.findFirst({
-      where: { deliveryOrderId: deliveryOrder1.id },
-    });
-    if (!existingDelItems) {
-      await prisma.deliveryOrderItem.createMany({
-        data: [
-          { deliveryOrderId: deliveryOrder1.id, menuItemId: biryaniItem.id, name: biryaniItem.name, quantity: 1, unitPrice: 15.99, subtotal: 15.99 },
-          { deliveryOrderId: deliveryOrder1.id, menuItemId: burgerItem.id, name: burgerItem.name, quantity: 1, unitPrice: 12.99, subtotal: 12.99 },
-        ],
-      });
-    }
-
-    // Unified order for delivery
-    await prisma.order.upsert({
-      where: {
-        restaurantId_orderCode: { restaurantId: restaurant.id, orderCode: 'ORD-DEL-201' },
-      },
-      update: { status: OrderStatus.CONFIRMED },
-      create: {
-        restaurantId: restaurant.id,
-        orderCode: 'ORD-DEL-201',
-        businessDate: todayStr,
-        orderType: OrderType.DELIVERY,
-        status: OrderStatus.CONFIRMED,
-        paymentStatus: OrderPaymentStatus.UNPAID,
-        paymentMethod: 'CASH',
-        customerId: ahmedCustomer ? ahmedCustomer.id : undefined,
-        customerName: 'Ahmed Khan',
-        customerPhone: '+923005551122',
-        deliveryAddress: '12-C Gulberg III, Main Boulevard, Lahore',
-        deliveryZoneId: standardZone.id,
-        riderId: riderAli.id,
-        subtotal: 28.98,
-        deliveryCharge: 3.50,
-        packagingCharge: 1.50,
-        taxRate: 8.875,
-        taxAmount: 2.57,
-        grandTotal: 36.55,
-        createdById: cashierUser.id,
-      },
-    });
-  }
-
-  // --- D. Completed Past Orders (Yesterday) ---
-  const completedOrderCode = 'ORD-HIST-901';
-  const completedOrder = await prisma.order.upsert({
-    where: {
-      restaurantId_orderCode: { restaurantId: restaurant.id, orderCode: completedOrderCode },
-    },
-    update: { status: OrderStatus.COMPLETED },
-    create: {
-      restaurantId: restaurant.id,
-      orderCode: completedOrderCode,
-      businessDate: yesterdayStr,
-      orderType: OrderType.DINE_IN,
-      status: OrderStatus.COMPLETED,
-      paymentStatus: OrderPaymentStatus.PAID,
-      paymentMethod: 'CASH',
-      subtotal: 58.46,
-      taxRate: 8.875,
-      taxAmount: 5.19,
-      grandTotal: 63.65,
-      paidAmount: 70.00,
-      changeAmount: 6.35,
-      closedAt: new Date(Date.now() - 52000000),
-      createdById: cashierUser.id,
-    },
-  });
-
-  const existingCompletedPayment = await prisma.payment.findFirst({
-    where: { orderId: completedOrder.id },
-  });
-  if (!existingCompletedPayment) {
-    await prisma.payment.create({
+    await prisma.orderItem.create({
       data: {
-        restaurantId: restaurant.id,
-        orderId: completedOrder.id,
-        shiftId: closedShift.id,
-        paymentMethod: PaymentMethod.CASH,
-        amount: 63.65,
-        amountTendered: 70.00,
-        changeAmount: 6.35,
-        status: PaymentStatus.COMPLETED,
-        createdById: cashierUser.id,
+        orderId: sampleOrder.id,
+        menuItemId: chickenKarahi.id,
+        itemName: chickenKarahi.name,
+        quantity: 1,
+        unitPrice: 2200,
+        itemGrossTotal: 2200,
+        itemNetTotal: 2200,
+        status: OrderItemStatus.ACTIVE,
+        kitchenStatus: ItemKitchenStatus.PREPARING,
+        specialInstructions: 'Make it Desi Ghee with ginger slices',
+      },
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: sampleOrder.id,
+        menuItemId: malaiBoti.id,
+        itemName: malaiBoti.name,
+        quantity: 1,
+        unitPrice: 950,
+        itemGrossTotal: 950,
+        itemNetTotal: 950,
+        status: OrderItemStatus.ACTIVE,
+        kitchenStatus: ItemKitchenStatus.PREPARING,
+      },
+    });
+
+    await prisma.orderItem.create({
+      data: {
+        orderId: sampleOrder.id,
+        menuItemId: roghniNaan.id,
+        itemName: roghniNaan.name,
+        quantity: 3,
+        unitPrice: 120,
+        itemGrossTotal: 360,
+        itemNetTotal: 360,
+        status: OrderItemStatus.ACTIVE,
+        kitchenStatus: ItemKitchenStatus.PREPARING,
       },
     });
   }
-  console.log(`✅ Seeded active & historical orders across Dine-In, Takeaway, and Delivery`);
 
-  // ---------------------------------------------------------------------------
-  // 22. System Audit Log
-  // ---------------------------------------------------------------------------
-  await prisma.auditLog.create({
-    data: {
-      restaurantId: restaurant.id,
-      userId: ownerUser.id,
-      action: 'SYSTEM_COMPREHENSIVE_SEED',
-      entityType: 'RESTAURANT',
-      entityId: restaurant.id,
-      metadata: {
-        event: 'Comprehensive seed loaded: Users, Roles, Tables, Kitchen Stations, Categories, Menu Items, Variants, Modifiers, Inventory, Suppliers, Purchase Orders, Customers, Loyalty, Promotions, Shifts, Expenses, Reservations, and Orders.',
-        version: '2.0.0',
-        timestamp: new Date().toISOString(),
-      },
-      ipAddress: '127.0.0.1',
-    },
-  });
-
-  console.log('\n======================================================');
-  console.log('🎉 Faraz POS Comprehensive Database Seed COMPLETED!');
-  console.log('======================================================');
-  console.log(`🏢 Restaurant: "${restaurant.name}"`);
-  console.log(`👤 Owner:       @owner_admin   (PIN: 1234, Pass: FarazAdmin2026!)`);
-  console.log(`👤 Manager:     @manager_john  (PIN: 2233, Pass: ManagerPass2026!)`);
-  console.log(`👤 Cashier:     @cashier_sarah (PIN: 4321, Pass: CashierPass2026!)`);
-  console.log(`👤 Waiters:     @waiter_alex   (PIN: 1122), @waiter_maya (PIN: 3344)`);
-  console.log(`👤 Kitchen:     @chef_gordon   (PIN: 7788), @chef_marco  (PIN: 9900)`);
-  console.log(`👤 Riders:      @rider_ali     (PIN: 5566), @rider_tariq (PIN: 6677)`);
-  console.log('======================================================\n');
+  console.log('\n=============================================================');
+  console.log('🎉 PAKISTANI RESTAURANT SEED COMPLETE!');
+  console.log('🏪 Restaurant: Faraz Shinwari & Desi Dera (Lahore, Pakistan)');
+  console.log('💵 Currency: PKR (Pakistani Rupee Rs.) | Tax: 16% PRA');
+  console.log('🍛 Menu: 35+ Authentic Shinwari, BBQ, Handi, Biryani, Naan & Chai items');
+  console.log('👤 Logins (Quick PINs):');
+  console.log('   - Owner:   owner_admin   (PIN: 1234)');
+  console.log('   - Manager: manager_john  (PIN: 2233)');
+  console.log('   - Cashier: cashier_sarah (PIN: 4321)');
+  console.log('   - Waiter:  waiter_alex   (PIN: 1122)');
+  console.log('   - Chef:    chef_gordon   (PIN: 7788)');
+  console.log('   - Rider:   rider_ali     (PIN: 5566)');
+  console.log('=============================================================\n');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error during database seed:', e);
+    console.error('❌ Database seed failed:', e);
     process.exit(1);
   })
   .finally(async () => {

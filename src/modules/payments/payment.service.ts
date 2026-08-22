@@ -234,9 +234,30 @@ export class PaymentService {
           paidAmount: newPaidAmount,
           changeAmount: newOrderChange,
           paymentStatus: newPaymentStatus,
+          status: isFullyPaid ? 'COMPLETED' : order.status,
           paymentMethod: input.paymentMethod,
         },
       });
+
+      // Release table if all active orders are paid
+      if (isFullyPaid && order.tableId) {
+        const remainingUnpaid = await tx.order.count({
+          where: {
+            restaurantId,
+            tableId: order.tableId,
+            id: { not: order.id },
+            paymentStatus: { in: ['UNPAID', 'PARTIALLY_PAID'] },
+            status: { notIn: ['CANCELLED', 'VOIDED'] },
+          },
+        });
+
+        if (remainingUnpaid === 0) {
+          await tx.restaurantTable.update({
+            where: { id: order.tableId },
+            data: { status: 'AVAILABLE' },
+          });
+        }
+      }
 
       // Award loyalty points if fully paid
       if (isFullyPaid) {
