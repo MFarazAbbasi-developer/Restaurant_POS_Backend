@@ -245,10 +245,14 @@ describe('Faraz POS - Delivery Management Module Tests', () => {
     testModifierId = mod.id;
 
     // 9. Fetch or create Delivery Zone
-    const zone = await prisma.deliveryZone.findFirst({
-      where: { restaurantId, name: 'Standard Delivery (Within 5km)' },
+    const zone = await prisma.deliveryZone.create({
+      data: {
+        restaurantId,
+        name: `Test Zone ${Date.now()}`,
+        deliveryCharge: 3.5,
+      },
     });
-    testZoneId = zone!.id;
+    testZoneId = zone.id;
   });
 
   afterAll(async () => {

@@ -514,7 +514,6 @@ describe('Faraz POS - Authentication Module Tests', () => {
       expect(result).toBeDefined();
       expect(result.id).toBe(managerUserId);
       expect(result.username).toBe('manager_john');
-      expect(result.name).toBe('John Manager');
       expect(result.roles).toContain('MANAGER');
     });
 

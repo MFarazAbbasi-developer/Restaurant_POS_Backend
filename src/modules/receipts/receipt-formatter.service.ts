@@ -11,10 +11,10 @@ export class ReceiptFormatterService {
   /**
    * Format money string with currency symbol/code.
    */
-  public static formatMoney(amount: number, currency: string = 'USD'): string {
+  public static formatMoney(amount: number, currency: string = 'PKR'): string {
     const formattedNum = Number(amount || 0).toFixed(2);
-    if (currency === 'USD') return `$${formattedNum}`;
     if (currency === 'PKR') return `Rs. ${formattedNum}`;
+    if (currency === 'USD') return `$${formattedNum}`;
     if (currency === 'EUR') return `€${formattedNum}`;
     if (currency === 'GBP') return `£${formattedNum}`;
     return `${currency} ${formattedNum}`;
@@ -100,7 +100,7 @@ export class ReceiptFormatterService {
     const items = (data.items as Record<string, unknown>[]) || [];
     const totals = (data.totals as Record<string, unknown>) || {};
     const payments = (data.payments as Record<string, unknown>[]) || [];
-    const currency = String(restaurant.currency || 'USD');
+    const currency = String(restaurant.currency || 'PKR');
 
     // 1. Header Section
     lines.push(this.center(String(restaurant.name || 'RESTAURANT'), width));
