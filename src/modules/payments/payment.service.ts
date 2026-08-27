@@ -369,13 +369,23 @@ export class PaymentService {
 
     // 5. Locate Active Cashier Shift (if cash refund)
     const effectiveRefundMethod = input.refundMethod ?? payment.paymentMethod;
-    const activeShift = await prisma.cashierShift.findFirst({
+    let activeShift = await prisma.cashierShift.findFirst({
       where: {
         restaurantId,
         cashierId: actor.id,
         status: 'OPEN',
       },
     });
+
+    if (!activeShift && payment.shiftId) {
+      activeShift = await prisma.cashierShift.findFirst({
+        where: {
+          id: payment.shiftId,
+          restaurantId,
+          status: 'OPEN',
+        },
+      });
+    }
 
     // 6. Calculate New Payment & Order Payment Status
     const newPaymentRefunded = payment.refundedAmount.add(refundDecimal);

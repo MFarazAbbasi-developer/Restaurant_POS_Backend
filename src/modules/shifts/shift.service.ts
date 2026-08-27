@@ -262,7 +262,8 @@ export class ShiftService {
       .add(shift.cashSales)
       .minus(shift.cashRefunds)
       .minus(shift.cashDrops)
-      .add(shift.cashAdjustments);
+      .add(shift.cashAdjustments)
+      .minus(shift.cashExpenses);
 
     if (dropAmountDecimal.greaterThan(currentDrawerCash)) {
       throw new BadRequestError(
