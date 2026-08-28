@@ -39,6 +39,10 @@ export interface CreateOrderInput {
   packagingCharge?: number;
   notes?: string;
   promoCode?: string;
+  orderDiscountType?: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  orderDiscountValue?: number;
+  orderDiscountReason?: string;
+  managerPin?: string;
   pointsToRedeem?: number;
   paymentMethod?: string;
   isAggregator?: boolean;
@@ -426,6 +430,9 @@ export class OrderService {
     // Calculate order financial breakdown
     const orderCalculation = OrderCalculationService.calculateOrderTotals({
       items: calculatedItems,
+      orderDiscountType: input.orderDiscountType ?? null,
+      orderDiscountValue: input.orderDiscountValue ?? null,
+      orderDiscountReason: input.orderDiscountReason ?? null,
       promoCode: promoResult.appliedPromoCode ?? input.promoCode ?? null,
       promotionDiscount: promoResult.totalPromotionDiscount,
       loyaltyPointsRedeemed: loyaltyPointsToRedeem,
