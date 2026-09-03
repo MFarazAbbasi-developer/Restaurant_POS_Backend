@@ -228,13 +228,21 @@ export class PaymentService {
       }
 
       // Update Order Payment Status and Totals
+      // For Dine-In: Paying at end of meal completes the order.
+      // For Takeaway & Delivery: Paying upfront leaves order active for kitchen preparation & queue handover!
+      const shouldCompleteStatus =
+        isFullyPaid &&
+        (order.orderType === 'DINE_IN' ||
+          order.status === 'SERVED' ||
+          order.status === 'READY');
+
       const updatedOrder = await tx.order.update({
         where: { id: order.id },
         data: {
           paidAmount: newPaidAmount,
           changeAmount: newOrderChange,
           paymentStatus: newPaymentStatus,
-          status: isFullyPaid ? 'COMPLETED' : order.status,
+          status: shouldCompleteStatus ? 'COMPLETED' : order.status,
           paymentMethod: input.paymentMethod,
         },
       });

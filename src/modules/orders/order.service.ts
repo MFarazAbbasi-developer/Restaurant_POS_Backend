@@ -221,6 +221,22 @@ export class OrderService {
         restaurantId,
         isActive: true,
       },
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+            kitchenStations: {
+              select: {
+                stationId: true,
+                station: {
+                  select: { id: true, name: true, code: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
     const menuItemMap = new Map(menuItems.map((m) => [m.id, m]));
 
@@ -292,6 +308,23 @@ export class OrderService {
         discountValue: itemInput.discountValue,
       });
 
+      const categoryName = menuItem.category?.name || '';
+      const station = menuItem.category?.kitchenStations?.[0]?.station;
+      const stationCode = station?.code?.toUpperCase() || '';
+      const itemCode = menuItem.itemCode?.toUpperCase() || '';
+
+      // Check if item is ready-to-serve (Cold drinks, Water, Soda, Juices, Pre-packaged Sweets)
+      const isReadyToServe =
+        stationCode === 'BAR' ||
+        stationCode === 'COUNTER' ||
+        stationCode === 'DRINKS' ||
+        stationCode === 'BEVERAGE' ||
+        /drink|beverage|water|cold|bottle|soda|chai|tea|lassi|meetha|dessert/i.test(categoryName) ||
+        /^(DRK|WAT|BEV|SODA|COLD)/i.test(itemCode);
+
+      const kitchenStatus = isReadyToServe ? ('SERVED' as const) : ('PENDING' as const);
+      const stationId = station?.id ?? menuItem.category?.kitchenStations?.[0]?.stationId ?? null;
+
       calculatedItems.push({
         menuItemId: menuItem.id,
         variantId: itemInput.variantId ?? null,
@@ -307,6 +340,9 @@ export class OrderService {
         itemNetTotal: itemCalc.itemNetTotal,
         specialInstructions: itemInput.specialInstructions ?? null,
         modifiers: calculatedModifiers,
+        isReadyToServe,
+        kitchenStatus,
+        stationId,
       });
     }
 
@@ -348,6 +384,29 @@ export class OrderService {
       });
       if (!table) {
         throw new BadRequestError('Specified table is invalid or inactive');
+      }
+
+      // If the table already has an active unpaid order (Round 1), automatically append items (Round 2+) into that existing order!
+      if (!input.tableOrderId) {
+        const existingActiveOrder = await prisma.order.findFirst({
+          where: {
+            restaurantId,
+            tableId: input.tableId,
+            tableOrderId: null,
+            paymentStatus: 'UNPAID',
+            status: { notIn: ['COMPLETED', 'CANCELLED', 'VOIDED'] },
+          },
+        });
+
+        if (existingActiveOrder) {
+          return this.addItemsToOrder(
+            restaurantId,
+            existingActiveOrder.id,
+            input.items,
+            actor,
+            ipAddress,
+          );
+        }
       }
     }
 
@@ -462,6 +521,32 @@ export class OrderService {
       const dateCompact = businessDate.replace(/-/g, '');
       const orderCode = `ORD-${dateCompact}-${formattedNum}`;
 
+      // Generate atomic sequential daily token number for Takeaway orders
+      let tokenNumber: number | null = null;
+      if (input.orderType === 'TAKEAWAY') {
+        const tokenSeq = (await tx.$queryRaw`
+          INSERT INTO "takeaway_daily_sequences" ("id", "restaurantId", "businessDate", "lastTokenNumber", "createdAt", "updatedAt")
+          VALUES (gen_random_uuid()::text, ${restaurantId}, ${businessDate}, 1, NOW(), NOW())
+          ON CONFLICT ("restaurantId", "businessDate")
+          DO UPDATE SET "lastTokenNumber" = "takeaway_daily_sequences"."lastTokenNumber" + 1, "updatedAt" = NOW()
+          RETURNING "lastTokenNumber"
+        `) as { lastTokenNumber: number }[];
+        tokenNumber = tokenSeq[0]?.lastTokenNumber ?? 1;
+      }
+
+      // Check if order contains only ready-to-serve items (e.g. drinks, water, ready sweets)
+      const allItemsReadyToServe =
+        calculatedItems.length > 0 && calculatedItems.every((it) => it.isReadyToServe);
+      const isPrepaid =
+        input.paymentMethod?.toUpperCase() === 'PREPAID' ||
+        input.paymentMethod?.toUpperCase() === 'PAID';
+
+      let initialOrderStatus: 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'SERVED' | 'COMPLETED' =
+        'PENDING';
+      if (allItemsReadyToServe) {
+        initialOrderStatus = input.orderType === 'DINE_IN' && isPrepaid ? 'COMPLETED' : 'READY';
+      }
+
       // 2. Create Order
       const newOrder = await tx.order.create({
         data: {
@@ -469,8 +554,8 @@ export class OrderService {
           orderCode,
           businessDate,
           orderType: input.orderType,
-          status: 'PENDING',
-          paymentStatus: input.paymentMethod?.toUpperCase() === 'PREPAID' ? 'PAID' : 'UNPAID',
+          status: initialOrderStatus,
+          paymentStatus: isPrepaid ? 'PAID' : 'UNPAID',
           paymentMethod: input.paymentMethod ?? 'CASH',
           subtotal: orderCalculation.subtotal,
           itemDiscountsTotal: orderCalculation.itemDiscountsTotal,
@@ -495,6 +580,7 @@ export class OrderService {
           tableId: input.tableId ?? null,
           tableOrderId: input.tableOrderId ?? null,
           guestCount: input.guestCount ?? 1,
+          tokenNumber,
           customerId: input.customerId ?? null,
           customerName: input.customerName ?? null,
           customerPhone: input.customerPhone ?? null,
@@ -522,6 +608,9 @@ export class OrderService {
                 promoResult.itemPromotions.get(it.menuItemId) ?? new Prisma.Decimal(0),
               itemNetTotal: it.itemNetTotal,
               status: 'ACTIVE',
+              kitchenStatus: it.kitchenStatus ?? (it.isReadyToServe ? 'SERVED' : 'PENDING'),
+              ...(it.isReadyToServe ? { preparedAt: new Date() } : {}),
+              ...(it.stationId ? { stationId: it.stationId } : {}),
               ...(it.specialInstructions ? { specialInstructions: it.specialInstructions } : {}),
               modifiers: {
                 create: it.modifiers.map((m) => ({
@@ -831,6 +920,9 @@ export class OrderService {
             discountAmount: it.discountAmount,
             itemNetTotal: it.itemNetTotal,
             status: 'ACTIVE',
+            kitchenStatus: it.kitchenStatus ?? (it.isReadyToServe ? 'SERVED' : 'PENDING'),
+            ...(it.isReadyToServe ? { preparedAt: new Date() } : {}),
+            ...(it.stationId ? { stationId: it.stationId } : {}),
             ...(it.specialInstructions ? { specialInstructions: it.specialInstructions } : {}),
             modifiers: {
               create: it.modifiers.map((m) => ({

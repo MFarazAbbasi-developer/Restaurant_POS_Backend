@@ -300,7 +300,24 @@ export class TakeawayService {
    * Retrieves active takeaway queue (PENDING, PREPARING, READY), sorted for fast POS display.
    */
   public static async getActiveQueue(restaurantId: string) {
-    const orders = await prisma.takeawayOrder.findMany({
+    // 1. Query active orders from unified Order table where orderType === 'TAKEAWAY'
+    const unifiedOrders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        orderType: 'TAKEAWAY',
+        status: { in: ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'SERVED'] },
+      },
+      include: {
+        items: {
+          include: { modifiers: true },
+        },
+        customer: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // 2. Query any legacy takeaway_orders table records
+    const legacyOrders = await prisma.takeawayOrder.findMany({
       where: {
         restaurantId,
         status: { in: ['PENDING', 'PREPARING', 'READY'] },
@@ -311,11 +328,42 @@ export class TakeawayService {
       orderBy: { createdAt: 'asc' },
     });
 
-    const pendingCount = orders.filter((o) => o.status === 'PENDING').length;
-    const preparingCount = orders.filter((o) => o.status === 'PREPARING').length;
-    const readyCount = orders.filter((o) => o.status === 'READY').length;
+    const formattedUnified = unifiedOrders.map((o) => {
+      const orderNum = parseInt(o.orderCode.split('-').pop() || '1', 10) || 1;
+      const statusMap =
+        o.status === 'CONFIRMED'
+          ? 'PENDING'
+          : o.status === 'SERVED'
+            ? 'READY'
+            : o.status;
+      return {
+        id: o.id,
+        tokenNumber: o.tokenNumber ?? orderNum,
+        orderCode: o.orderCode,
+        businessDate: o.businessDate,
+        customerName: o.customerName || o.customer?.name || 'Walk-in Counter',
+        customerPhone: o.customerPhone || o.customer?.phone || null,
+        status: statusMap as 'PENDING' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED',
+        paymentStatus: o.paymentStatus === 'PAID' ? ('PAID' as const) : ('PENDING' as const),
+        paymentMethod: o.paymentMethod || 'CASH',
+        totalAmount: o.grandTotal.toNumber(),
+        isPayOnPickup: o.paymentStatus === 'UNPAID',
+        specialInstructions: o.notes,
+        createdAt: o.createdAt,
+        items: o.items.map((it) => ({
+          id: it.id,
+          name: it.itemName,
+          variantName: it.variantName,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice.toNumber(),
+          subtotal: it.itemNetTotal.toNumber(),
+          specialInstructions: it.specialInstructions,
+          modifiers: it.modifiers,
+        })),
+      };
+    });
 
-    const formattedOrders = orders.map((o) => ({
+    const formattedLegacy = legacyOrders.map((o) => ({
       id: o.id,
       tokenNumber: o.tokenNumber,
       orderCode: o.orderCode,
@@ -341,15 +389,26 @@ export class TakeawayService {
       })),
     }));
 
+    // Combine avoiding duplicates
+    const legacyIds = new Set(legacyOrders.map((o) => o.id));
+    const allFormatted = [
+      ...formattedUnified.filter((o) => !legacyIds.has(o.id)),
+      ...formattedLegacy,
+    ].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    const pendingCount = allFormatted.filter((o) => o.status === 'PENDING').length;
+    const preparingCount = allFormatted.filter((o) => o.status === 'PREPARING').length;
+    const readyCount = allFormatted.filter((o) => o.status === 'READY').length;
+
     return {
       restaurantId,
       summary: {
-        totalActive: orders.length,
+        totalActive: allFormatted.length,
         pending: pendingCount,
         preparing: preparingCount,
         ready: readyCount,
       },
-      queue: formattedOrders,
+      queue: allFormatted,
     };
   }
 
@@ -361,9 +420,15 @@ export class TakeawayService {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const whereClause: Prisma.TakeawayOrderWhereInput = {
+    const whereClause: Prisma.OrderWhereInput = {
       restaurantId,
-      ...(query.status && { status: query.status }),
+      orderType: 'TAKEAWAY',
+      ...(query.status && {
+        status:
+          query.status === 'PENDING'
+            ? { in: ['PENDING', 'CONFIRMED'] }
+            : (query.status as any),
+      }),
       ...(query.businessDate && { businessDate: query.businessDate }),
       ...(query.search && {
         OR: [
@@ -375,14 +440,15 @@ export class TakeawayService {
     };
 
     const [total, orders] = await Promise.all([
-      prisma.takeawayOrder.count({ where: whereClause }),
-      prisma.takeawayOrder.findMany({
+      prisma.order.count({ where: whereClause }),
+      prisma.order.findMany({
         where: whereClause,
         include: {
-          items: true,
+          items: { include: { modifiers: true } },
           createdByUser: {
             select: { id: true, name: true, username: true },
           },
+          customer: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -390,19 +456,42 @@ export class TakeawayService {
       }),
     ]);
 
-    const formattedOrders = orders.map((o) => ({
-      ...o,
-      subtotal: o.subtotal.toNumber(),
-      taxRate: o.taxRate ? o.taxRate.toNumber() : null,
-      taxAmount: o.taxAmount.toNumber(),
-      discountAmount: o.discountAmount.toNumber(),
-      totalAmount: o.totalAmount.toNumber(),
-      items: o.items.map((it) => ({
-        ...it,
-        unitPrice: it.unitPrice.toNumber(),
-        subtotal: it.subtotal.toNumber(),
-      })),
-    }));
+    const formattedOrders = orders.map((o) => {
+      const orderNum = parseInt(o.orderCode.split('-').pop() || '1', 10) || 1;
+      return {
+        id: o.id,
+        tokenNumber: o.tokenNumber ?? orderNum,
+        orderCode: o.orderCode,
+        businessDate: o.businessDate,
+        customerName: o.customerName || o.customer?.name || 'Walk-in Counter',
+        customerPhone: o.customerPhone || o.customer?.phone || null,
+        status: (o.status === 'CONFIRMED' ? 'PENDING' : o.status) as any,
+        paymentStatus: o.paymentStatus === 'PAID' ? ('PAID' as const) : ('PENDING' as const),
+        paymentMethod: o.paymentMethod || 'CASH',
+        subtotal: o.subtotal.toNumber(),
+        taxRate: o.taxRate ? o.taxRate.toNumber() : null,
+        taxAmount: o.taxAmount.toNumber(),
+        discountAmount: o.totalDiscount.toNumber(),
+        totalAmount: o.grandTotal.toNumber(),
+        isPayOnPickup: o.paymentStatus === 'UNPAID',
+        specialInstructions: o.notes,
+        createdByUser: o.createdByUser,
+        createdAt: o.createdAt,
+        updatedAt: o.updatedAt,
+        items: o.items.map((it) => ({
+          id: it.id,
+          menuItemId: it.menuItemId,
+          variantId: it.variantId,
+          name: it.itemName,
+          variantName: it.variantName,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice.toNumber(),
+          subtotal: it.itemNetTotal.toNumber(),
+          specialInstructions: it.specialInstructions,
+          modifiers: it.modifiers,
+        })),
+      };
+    });
 
     return {
       orders: formattedOrders,
@@ -419,6 +508,52 @@ export class TakeawayService {
    * Retrieves single takeaway order details.
    */
   public static async getOrderById(restaurantId: string, orderId: string) {
+    const unified = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: {
+        items: { include: { modifiers: true } },
+        createdByUser: { select: { id: true, name: true, username: true } },
+        customer: true,
+      },
+    });
+
+    if (unified) {
+      const orderNum = parseInt(unified.orderCode.split('-').pop() || '1', 10) || 1;
+      return {
+        id: unified.id,
+        tokenNumber: unified.tokenNumber ?? orderNum,
+        orderCode: unified.orderCode,
+        businessDate: unified.businessDate,
+        customerName: unified.customerName || unified.customer?.name || 'Walk-in Counter',
+        customerPhone: unified.customerPhone || unified.customer?.phone || null,
+        status: (unified.status === 'CONFIRMED' ? 'PENDING' : unified.status) as any,
+        paymentStatus: unified.paymentStatus === 'PAID' ? ('PAID' as const) : ('PENDING' as const),
+        paymentMethod: unified.paymentMethod || 'CASH',
+        subtotal: unified.subtotal.toNumber(),
+        taxRate: unified.taxRate ? unified.taxRate.toNumber() : null,
+        taxAmount: unified.taxAmount.toNumber(),
+        discountAmount: unified.totalDiscount.toNumber(),
+        totalAmount: unified.grandTotal.toNumber(),
+        isPayOnPickup: unified.paymentStatus === 'UNPAID',
+        specialInstructions: unified.notes,
+        createdByUser: unified.createdByUser,
+        createdAt: unified.createdAt,
+        updatedAt: unified.updatedAt,
+        items: unified.items.map((it) => ({
+          id: it.id,
+          menuItemId: it.menuItemId,
+          variantId: it.variantId,
+          name: it.itemName,
+          variantName: it.variantName,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice.toNumber(),
+          subtotal: it.itemNetTotal.toNumber(),
+          specialInstructions: it.specialInstructions,
+          modifiers: it.modifiers,
+        })),
+      };
+    }
+
     const order = await prisma.takeawayOrder.findFirst({
       where: { id: orderId, restaurantId },
       include: {
@@ -458,6 +593,110 @@ export class TakeawayService {
     actor: AuthenticatedUserContext,
     ipAddress?: string,
   ) {
+    const unified = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: { include: { modifiers: true } } },
+    });
+
+    if (unified) {
+      if (['CANCELLED', 'VOIDED'].includes(unified.status)) {
+        throw new BadRequestError('Cannot update status of a cancelled takeaway order');
+      }
+
+      if (unified.status === 'COMPLETED') {
+        throw new BadRequestError('Cannot update status of an already completed takeaway order');
+      }
+
+      const updated = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: input.status === 'COMPLETED' ? 'COMPLETED' : input.status,
+          ...(input.markPaid ? { paymentStatus: 'PAID', paidAmount: unified.grandTotal } : {}),
+          ...(input.status === 'COMPLETED' ? { closedAt: new Date() } : {}),
+        },
+        include: {
+          items: { include: { modifiers: true } },
+        },
+      });
+
+      // If markPaid, create payment record if not yet created
+      if (input.markPaid && unified.paymentStatus !== 'PAID') {
+        await prisma.payment.create({
+          data: {
+            restaurantId,
+            orderId: unified.id,
+            amount: unified.grandTotal,
+            paymentMethod: 'CASH',
+            status: 'COMPLETED',
+            createdById: actor.id,
+          },
+        });
+      }
+
+      await AuditService.log({
+        restaurantId,
+        userId: actor.id,
+        action: 'TAKEAWAY_ORDER_STATUS_CHANGED',
+        entityType: 'ORDER',
+        entityId: orderId,
+        metadata: {
+          orderCode: unified.orderCode,
+          tokenNumber: unified.tokenNumber,
+          previousStatus: unified.status,
+          newStatus: input.status,
+          paymentStatus: updated.paymentStatus,
+        },
+        ipAddress: ipAddress ?? null,
+      });
+
+      RealtimeService.emitToRestaurant(restaurantId, 'takeaway:status_changed', {
+        orderId,
+        orderCode: unified.orderCode,
+        tokenNumber: unified.tokenNumber,
+        previousStatus: unified.status,
+        status: input.status,
+        paymentStatus: updated.paymentStatus,
+      });
+
+      RealtimeService.emitToRestaurant(restaurantId, 'order:status_changed', {
+        orderId,
+        status: updated.status,
+      });
+
+      const orderNum = parseInt(updated.orderCode.split('-').pop() || '1', 10) || 1;
+      return {
+        id: updated.id,
+        tokenNumber: updated.tokenNumber ?? orderNum,
+        orderCode: updated.orderCode,
+        businessDate: updated.businessDate,
+        customerName: updated.customerName || 'Walk-in Counter',
+        customerPhone: updated.customerPhone || null,
+        status: updated.status as any,
+        paymentStatus: updated.paymentStatus === 'PAID' ? ('PAID' as const) : ('PENDING' as const),
+        paymentMethod: updated.paymentMethod || 'CASH',
+        subtotal: updated.subtotal.toNumber(),
+        taxRate: updated.taxRate ? updated.taxRate.toNumber() : null,
+        taxAmount: updated.taxAmount.toNumber(),
+        discountAmount: updated.totalDiscount.toNumber(),
+        totalAmount: updated.grandTotal.toNumber(),
+        isPayOnPickup: updated.paymentStatus === 'UNPAID',
+        specialInstructions: updated.notes,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt,
+        items: updated.items.map((it) => ({
+          id: it.id,
+          name: it.itemName,
+          variantName: it.variantName,
+          quantity: it.quantity,
+          unitPrice: it.unitPrice.toNumber(),
+          subtotal: it.itemNetTotal.toNumber(),
+          specialInstructions: it.specialInstructions,
+          modifiers: it.modifiers,
+        })),
+      };
+    }
+
+    // Fallback to legacy takeaway_orders
     const existing = await prisma.takeawayOrder.findFirst({
       where: { id: orderId, restaurantId },
     });
@@ -536,6 +775,64 @@ export class TakeawayService {
     actor: AuthenticatedUserContext,
     ipAddress?: string,
   ) {
+    const unified = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+    });
+
+    if (unified) {
+      if (['CANCELLED', 'VOIDED'].includes(unified.status)) {
+        throw new BadRequestError('Takeaway order is already cancelled');
+      }
+
+      if (unified.status === 'COMPLETED') {
+        throw new BadRequestError('Cannot cancel an already completed takeaway order');
+      }
+
+      const cancelled = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'CANCELLED',
+          cancelReason: input.reason,
+          closedAt: new Date(),
+        },
+      });
+
+      await AuditService.log({
+        restaurantId,
+        userId: actor.id,
+        action: 'TAKEAWAY_ORDER_CANCELLED',
+        entityType: 'ORDER',
+        entityId: orderId,
+        metadata: {
+          orderCode: unified.orderCode,
+          tokenNumber: unified.tokenNumber,
+          reason: input.reason,
+          cancelledBy: actor.username,
+        },
+        ipAddress: ipAddress ?? null,
+      });
+
+      RealtimeService.emitToRestaurant(restaurantId, 'takeaway:order_cancelled', {
+        orderId,
+        orderCode: unified.orderCode,
+        tokenNumber: unified.tokenNumber,
+        cancelReason: input.reason,
+      });
+
+      RealtimeService.emitToRestaurant(restaurantId, 'order:status_changed', {
+        orderId,
+        status: 'CANCELLED',
+      });
+
+      return {
+        id: cancelled.id,
+        orderCode: cancelled.orderCode,
+        status: cancelled.status,
+        cancelReason: cancelled.cancelReason,
+        cancelledAt: cancelled.closedAt,
+      };
+    }
+
     const existing = await prisma.takeawayOrder.findFirst({
       where: { id: orderId, restaurantId },
     });

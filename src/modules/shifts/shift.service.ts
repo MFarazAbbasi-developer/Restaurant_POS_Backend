@@ -180,7 +180,7 @@ export class ShiftService {
   public static async getCurrentShift(
     restaurantId: string,
     cashierId: string,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<Record<string, unknown> | null> {
     const shift = await prisma.cashierShift.findFirst({
       where: {
         restaurantId,
@@ -201,7 +201,7 @@ export class ShiftService {
     });
 
     if (!shift) {
-      throw new NotFoundError('No active open shift found for this cashier');
+      return null;
     }
 
     const currentDrawerCash = shift.openingCash

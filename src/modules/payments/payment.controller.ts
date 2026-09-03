@@ -21,10 +21,18 @@ export class PaymentController {
         req.ip,
       );
 
+      const paymentRecord = payment as Record<string, unknown>;
+
       ApiResponse.success(res, {
         statusCode: HttpStatus.CREATED,
         message: 'Payment recorded successfully',
-        data: { payment },
+        data: {
+          payment: paymentRecord,
+          order: paymentRecord.order ?? null,
+          changeAmount: paymentRecord.changeAmount
+            ? Number(paymentRecord.changeAmount)
+            : 0,
+        },
       });
     } catch (error) {
       next(error);

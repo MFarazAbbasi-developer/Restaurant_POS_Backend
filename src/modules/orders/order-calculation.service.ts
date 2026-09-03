@@ -22,6 +22,9 @@ export interface CalculatedOrderItem {
   itemNetTotal: Prisma.Decimal;
   specialInstructions?: string | null;
   modifiers: CalculatedItemModifier[];
+  isReadyToServe?: boolean;
+  kitchenStatus?: 'PENDING' | 'PREPARING' | 'READY' | 'SERVED';
+  stationId?: string | null;
 }
 
 export interface OrderCalculationInput {
