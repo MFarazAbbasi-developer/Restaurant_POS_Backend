@@ -1,7 +1,14 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-// Load environment variables from .env file
+/**
+ * Load env files without overriding variables already set by the desktop shell.
+ * Production desktop prefers FARAZ_POS_CONFIG_FILE (persistent ProgramData config).
+ * Development continues to use local .env in the backend cwd.
+ */
+if (process.env.FARAZ_POS_CONFIG_FILE) {
+  dotenv.config({ path: process.env.FARAZ_POS_CONFIG_FILE });
+}
 dotenv.config();
 
 const envSchema = z.object({
@@ -19,6 +26,17 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().min(1, 'DATABASE_URL is required'),
   CORS_ORIGIN: z.string().default('*'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /**
+   * Optional persistent log directory (desktop Step 3).
+   * When set, backend also writes JSON logs under this directory.
+   */
+  LOG_DIR: z.string().optional(),
+  FARAZ_POS_DATA_DIR: z.string().optional(),
+  FARAZ_POS_CONFIG_DIR: z.string().optional(),
+  FARAZ_POS_CONFIG_FILE: z.string().optional(),
+  FARAZ_POS_LOG_DIR: z.string().optional(),
+  FARAZ_POS_POSTGRES_DATA_DIR: z.string().optional(),
+  FARAZ_POS_BACKUP_DIR: z.string().optional(),
   JWT_ACCESS_SECRET: z
     .string()
     .min(16, 'JWT_ACCESS_SECRET must be at least 16 characters')

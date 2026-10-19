@@ -132,6 +132,8 @@ npm run prisma:push
 
 The HTTP server binds to `127.0.0.1` by default (`HOST`). Do not open firewall ports for the initial local-only release.
 
+**Persistent data (Step 3):** packaged Windows installs keep customer data under `%ProgramData%\FarazPOS` (config, logs, future PostgreSQL data, backups), separate from `%ProgramFiles%\Faraz POS`. Development keeps using this repo’s `.env`. See `electron/PERSISTENT_DATA.md` in the desktop workspace.
+
 #### Database seeding
 
 | Goal | Command | Behavior |
