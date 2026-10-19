@@ -30,6 +30,7 @@ const envSchema = z.object({
     .default('10')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().positive().max(14)),
+  STATIC_FILES_PATH: z.string().optional(),
 });
 
 const parseEnv = () => {
