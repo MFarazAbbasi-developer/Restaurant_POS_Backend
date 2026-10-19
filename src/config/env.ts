@@ -6,6 +6,10 @@ dotenv.config();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  HOST: z
+    .string()
+    .default('127.0.0.1')
+    .describe('Listen address. Default 127.0.0.1 keeps the initial release local-only.'),
   PORT: z
     .string()
     .default('5000')

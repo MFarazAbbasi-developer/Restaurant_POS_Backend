@@ -37,8 +37,11 @@ export class HealthService {
       logger.warn({ error: err }, 'Health check database ping failed');
     }
 
+    // Database connectivity is required for a ready application.
+    // A disconnected DB must never be reported as healthy/degraded-with-200 —
+    // desktop and load balancers treat HTTP 200 as "ready to serve traffic".
     const overallStatus: 'healthy' | 'degraded' | 'unhealthy' =
-      dbStatus === 'connected' ? 'healthy' : 'degraded';
+      dbStatus === 'connected' ? 'healthy' : 'unhealthy';
 
     return {
       status: overallStatus,

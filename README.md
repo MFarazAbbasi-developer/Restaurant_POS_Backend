@@ -120,13 +120,17 @@ npm run prisma:generate
 
 Apply versioned migrations (preferred over `db push` for shared/production-like environments):
 ```bash
-npx prisma migrate deploy
+npm run prisma:migrate:deploy
 ```
 
 Push schema changes to the database (local experimentation only; not for production):
 ```bash
 npm run prisma:push
 ```
+
+**Desktop startup** runs `prisma migrate deploy` and the system seed automatically before the API starts. It never runs `prisma db push`, `prisma migrate reset`, or `prisma:seed:demo`. If migration history is missing or inconsistent, startup stops with a diagnostic message instead of attempting a destructive repair.
+
+The HTTP server binds to `127.0.0.1` by default (`HOST`). Do not open firewall ports for the initial local-only release.
 
 #### Database seeding
 
@@ -191,10 +195,13 @@ The server will be available at:
 | `npm run format:check`| Check code formatting without modifying files |
 | `npm run prisma:generate` | Generate Prisma Client types |
 | `npm run prisma:migrate` | Create and apply database migrations (`migrate dev`) |
+| `npm run prisma:migrate:deploy` | Apply pending migrations (`migrate deploy` — safe for desktop/prod) |
 | `npm run prisma:push` | Push Prisma schema state to database (dev only) |
 | `npm run prisma:seed` | **Safe** system seed — upsert global permissions only |
 | `npm run prisma:seed:system` | Same as `prisma:seed` (explicit name) |
+| `npm run prisma:seed:system:runtime` | Same system seed via Node (no `tsx`; used by desktop startup) |
 | `npm run prisma:seed:demo` | **Destructive** demo seed (TRUNCATE + demo data; opt-in) |
+| `npm run db:check` | Connectivity probe (`SELECT 1`) for startup orchestration |
 | `npm run prisma:studio` | Launch Prisma Studio GUI |
 | `npm run docker:db:up` | Start PostgreSQL container in background |
 | `npm run docker:db:down` | Stop and remove PostgreSQL container |

@@ -7,12 +7,14 @@ export class HealthController {
   public getHealth = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const health = await healthService.getHealth();
-      const statusCode =
-        health.status === 'unhealthy' ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.OK;
+      const isReady = health.status === 'healthy';
+      const statusCode = isReady ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
 
       ApiResponse.success(res, {
         statusCode,
-        message: 'Faraz POS Backend is operational',
+        message: isReady
+          ? 'Faraz POS Backend is operational'
+          : 'Faraz POS Backend is not ready (database unavailable)',
         data: health,
       });
     } catch (error) {

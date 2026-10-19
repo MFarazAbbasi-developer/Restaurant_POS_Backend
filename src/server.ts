@@ -16,12 +16,12 @@ const startServer = async (): Promise<void> => {
     // 3. Initialize Socket.IO
     initSocket(httpServer);
 
-    // 4. Start listening
-    const server = httpServer.listen(env.PORT, () => {
+    // 4. Start listening (default HOST=127.0.0.1 — local-only for initial desktop release)
+    const server = httpServer.listen(env.PORT, env.HOST, () => {
       logger.info(`🚀 Faraz POS Backend started in [${env.NODE_ENV}] mode`);
-      logger.info(`🌐 HTTP Server running on http://localhost:${env.PORT}`);
-      logger.info(`🩺 Health Check endpoint: http://localhost:${env.PORT}/health`);
-      logger.info(`📡 API v1 prefix: http://localhost:${env.PORT}${env.API_PREFIX}`);
+      logger.info(`🌐 HTTP Server running on http://${env.HOST}:${env.PORT}`);
+      logger.info(`🩺 Health Check endpoint: http://${env.HOST}:${env.PORT}/health`);
+      logger.info(`📡 API v1 prefix: http://${env.HOST}:${env.PORT}${env.API_PREFIX}`);
     });
 
     // Graceful Shutdown Logic
