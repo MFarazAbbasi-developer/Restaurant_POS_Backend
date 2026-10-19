@@ -34,26 +34,28 @@ describe('Faraz POS - Restaurant Configuration Module Tests', () => {
   });
 
   afterAll(async () => {
-    // Reset restaurant configurations to defaults
+    // Restore demo-seed restaurant profile (matches prisma/seed-demo.ts)
     await prisma.restaurant.update({
       where: { id: restaurantId },
       data: {
-        name: 'Faraz Flagship Bistro',
-        legalName: 'Faraz Hospitality Group LLC',
-        phone: '+1 (555) 019-2834',
-        address: '100 Gourmet Avenue, Suite 10, New York, NY 10001',
-        currency: 'USD',
-        timezone: 'America/New_York',
-        taxNumber: 'US-NYC-TAX-88901',
-        taxRate: 8.875,
+        name: 'Faraz Shinwari & Desi Dera',
+        legalName: 'Faraz Hospitality Group (Pvt) Ltd',
+        phone: '+92 42 3575 8899',
+        address: 'Plot 14-C, MM Alam Road, Gulberg III, Lahore, Punjab, Pakistan',
+        currency: 'PKR',
+        timezone: 'Asia/Karachi',
+        taxNumber: 'PK-NTN-7491023-8',
+        taxRate: 16.0,
         taxInclusive: false,
         serviceChargeRate: 0,
         serviceChargeEnabled: false,
         dineInEnabled: true,
         takeawayEnabled: true,
         deliveryEnabled: true,
-        receiptHeader: 'Welcome to Faraz Flagship Bistro!',
-        receiptFooter: 'Thank you for dining with us! Please come again.',
+        receiptHeader:
+          'Bismillah-ir-Rahman-ir-Rahim\nWelcome to Faraz Shinwari & Desi Dera\nAuthentic Koyla BBQ, Shinwari Karahi & Desi Handi\nMM Alam Road, Gulberg III, Lahore',
+        receiptFooter:
+          'Thank you for dining with us! Shukriya!\nFor Catering & Family Reservations: 0300-1234567\nFollow us on Instagram: @farazshinwaridera',
       },
     });
   });
@@ -69,10 +71,10 @@ describe('Faraz POS - Restaurant Configuration Module Tests', () => {
       expect(response.body.message).toBe('Restaurant configuration retrieved successfully');
       expect(response.body.data.restaurant).toMatchObject({
         id: restaurantId,
-        name: 'Faraz Flagship Bistro',
+        name: 'Faraz Shinwari & Desi Dera',
         slug: 'faraz-flagship',
-        currency: 'USD',
-        timezone: 'America/New_York',
+        currency: 'PKR',
+        timezone: 'Asia/Karachi',
         dineInEnabled: true,
         takeawayEnabled: true,
         deliveryEnabled: true,

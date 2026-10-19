@@ -118,10 +118,26 @@ Generate the Prisma Client:
 npm run prisma:generate
 ```
 
-Push schema changes to the database:
+Apply versioned migrations (preferred over `db push` for shared/production-like environments):
+```bash
+npx prisma migrate deploy
+```
+
+Push schema changes to the database (local experimentation only; not for production):
 ```bash
 npm run prisma:push
 ```
+
+#### Database seeding
+
+| Goal | Command | Behavior |
+| :--- | :--- | :--- |
+| **Production / fresh install (safe)** | `npm run prisma:seed:system` or `npm run prisma:seed` | Idempotent upsert of the **global permission catalog only**. No restaurants, users, or demo data. Safe to re-run. |
+| **Development / tests (destructive)** | `npm run prisma:seed:demo` | **TRUNCATES** all business tables, then loads the Pakistani demo restaurant, staff, menu, and sample data. Requires explicit opt-in via the demo command (sets `ALLOW_DESTRUCTIVE_SEED=1`). |
+
+**Command change:** `npm run prisma:seed` and `prisma db seed` previously ran the destructive demo seed. They now run the **system seed** only. Use `npm run prisma:seed:demo` when you need the wipe-and-reload demo dataset.
+
+Never run `prisma:seed:demo` against production or customer databases. Never set `ALLOW_DESTRUCTIVE_SEED=1` in production environments.
 
 Open Prisma Studio (visual database manager):
 ```bash
@@ -156,8 +172,11 @@ The server will be available at:
 | `npm run format` | Format codebase with Prettier |
 | `npm run format:check`| Check code formatting without modifying files |
 | `npm run prisma:generate` | Generate Prisma Client types |
-| `npm run prisma:migrate` | Create and apply database migrations |
-| `npm run prisma:push` | Push Prisma schema state to database |
+| `npm run prisma:migrate` | Create and apply database migrations (`migrate dev`) |
+| `npm run prisma:push` | Push Prisma schema state to database (dev only) |
+| `npm run prisma:seed` | **Safe** system seed — upsert global permissions only |
+| `npm run prisma:seed:system` | Same as `prisma:seed` (explicit name) |
+| `npm run prisma:seed:demo` | **Destructive** demo seed (TRUNCATE + demo data; opt-in) |
 | `npm run prisma:studio` | Launch Prisma Studio GUI |
 | `npm run docker:db:up` | Start PostgreSQL container in background |
 | `npm run docker:db:down` | Stop and remove PostgreSQL container |

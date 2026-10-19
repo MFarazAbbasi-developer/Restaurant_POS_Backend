@@ -31,7 +31,9 @@ describe('Faraz POS - Authentication Module Tests', () => {
       where: { slug: 'faraz-flagship' },
     });
     if (!restaurant) {
-      throw new Error('Database not seeded! Please run npx prisma db seed');
+      throw new Error(
+        'Database not seeded! Please run npm run prisma:seed:demo (destructive demo seed)',
+      );
     }
     restaurantId = restaurant.id;
 
@@ -384,7 +386,7 @@ describe('Faraz POS - Authentication Module Tests', () => {
       expect(response.body.data.user.restaurant).toMatchObject({
         id: restaurantId,
         slug: 'faraz-flagship',
-        currency: 'USD',
+        currency: 'PKR',
       });
       expect(response.body.data.user.roles).toHaveLength(1);
       expect(response.body.data.user.roles[0].name).toBe('OWNER');

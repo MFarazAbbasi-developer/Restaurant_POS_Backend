@@ -17,7 +17,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
-    "prisma:seed": "prisma db seed",
+    "prisma:seed": "tsx prisma/seed-system.ts",
+    "prisma:seed:system": "tsx prisma/seed-system.ts",
+    "prisma:seed:demo": "tsx prisma/seed-demo.cli.ts",
     "prisma:studio": "prisma studio",
     "docker:db:up": "docker compose up -d postgres",
     "docker:db:down": "docker compose down",
@@ -70,6 +72,6 @@
     "vitest": "^3.0.6"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed-system.ts"
   }
 }

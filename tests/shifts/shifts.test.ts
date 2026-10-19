@@ -202,13 +202,15 @@ describe('Faraz POS - Cashier Shifts & Cash Drawer Management Tests', () => {
   // 1. Shift Opening & Validation
   // ===========================================================================
   describe('1. Shift Opening & Validation', () => {
-    it('should return 404 when requesting current shift before opening', async () => {
+    it('should return null shift when requesting current shift before opening', async () => {
       const res = await request(app)
         .get('/api/v1/shifts/current')
         .set('Authorization', `Bearer ${cashierAccessToken}`);
 
-      expect(res.status).toBe(404);
-      expect(res.body.success).toBe(false);
+      // Controller returns 200 with shift: null (does not throw NotFoundError)
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.shift).toBeNull();
     });
 
     it('should reject opening shift with negative opening float', async () => {
