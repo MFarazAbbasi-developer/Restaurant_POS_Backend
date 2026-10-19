@@ -21,6 +21,7 @@ import { loyaltyPaths } from './paths/loyalty.docs.js';
 import { reservationsPaths } from './paths/reservations.docs.js';
 import { purchasingPaths } from './paths/purchasing.docs.js';
 import { expensesPaths } from './paths/expenses.docs.js';
+import { setupPaths } from './paths/setup.docs.js';
 
 export const openApiSpecification = {
   openapi: '3.0.3',
@@ -141,9 +142,15 @@ Welcome to the Faraz POS REST API documentation.
       description:
         'Operating expense categories, cash/petty cash disbursements, cashier drawer integration, voiding, and expense analytics',
     },
+    {
+      name: 'Setup',
+      description:
+        'Unauthenticated first-run onboarding: create the initial restaurant and OWNER admin when the database has no restaurants',
+    },
   ],
   paths: {
     ...healthPaths,
+    ...setupPaths,
     ...authPaths,
     ...restaurantPaths,
     ...staffPaths,

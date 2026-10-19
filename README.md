@@ -139,6 +139,24 @@ npm run prisma:push
 
 Never run `prisma:seed:demo` against production or customer databases. Never set `ALLOW_DESTRUCTIVE_SEED=1` in production environments.
 
+#### First-run setup (production)
+
+After migrations (and optionally `npm run prisma:seed:system`), start the backend and open the app. When no restaurant exists:
+
+- `GET /api/v1/setup/status` returns `{ setupRequired: true }`
+- The frontend routes to `/setup` for restaurant + owner creation
+- `POST /api/v1/setup` creates the first restaurant, system roles, and OWNER admin (hashed PIN/password)
+
+Once any restaurant exists, further setup calls return HTTP 409. Concurrent setup requests are serialized with a PostgreSQL advisory lock.
+
+Setup module tests wipe tenant tables and are gated. Against a disposable database only:
+
+```bash
+# PowerShell example
+$env:DATABASE_URL = "postgresql://pos_admin:pos_password_123@localhost:5432/faraz_pos_setup_test?schema=public"
+npm run test:setup
+```
+
 Open Prisma Studio (visual database manager):
 ```bash
 npm run prisma:studio

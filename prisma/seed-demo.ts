@@ -25,7 +25,10 @@ import {
   ModifierSelectionType,
 } from '@prisma/client';
 import bcrypt from 'bcrypt';
-import { DEFAULT_PERMISSIONS, ROLE_PERMISSIONS_MAP } from './permissions.catalog.js';
+import {
+  DEFAULT_PERMISSIONS,
+  ROLE_PERMISSIONS_MAP,
+} from '../src/common/rbac/permissions.catalog.js';
 
 const prisma = new PrismaClient();
 const BCRYPT_SALT_ROUNDS = 10;

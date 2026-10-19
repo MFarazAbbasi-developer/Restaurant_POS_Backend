@@ -19,11 +19,15 @@ import { loyaltyRouter } from '../modules/loyalty/loyalty.routes.js';
 import { reservationsRouter } from '../modules/reservations/reservations.routes.js';
 import { purchasingRouter } from '../modules/purchasing/purchasing.routes.js';
 import { expensesRouter } from '../modules/expenses/expenses.routes.js';
+import { setupRouter } from '../modules/setup/setup.routes.js';
 
 export const apiRouter = Router();
 
 // 1. Health check module
 apiRouter.use('/health', healthRouter);
+
+// 1b. First-run setup (unauthenticated; locked after first restaurant exists)
+apiRouter.use('/setup', setupRouter);
 
 // 2. Authentication & Session Management module
 apiRouter.use('/auth', authRouter);

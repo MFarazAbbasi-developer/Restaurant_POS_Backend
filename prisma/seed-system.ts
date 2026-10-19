@@ -10,7 +10,7 @@
  *   npm run prisma:seed          (alias — also used by `prisma db seed`)
  */
 import { PrismaClient } from '@prisma/client';
-import { DEFAULT_PERMISSIONS } from './permissions.catalog.js';
+import { DEFAULT_PERMISSIONS } from '../src/common/rbac/permissions.catalog.js';
 
 const prisma = new PrismaClient();
 
