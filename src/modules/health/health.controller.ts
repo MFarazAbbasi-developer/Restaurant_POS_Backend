@@ -13,8 +13,8 @@ export class HealthController {
       ApiResponse.success(res, {
         statusCode,
         message: isReady
-          ? 'Faraz POS Backend is operational'
-          : 'Faraz POS Backend is not ready (database unavailable)',
+          ? 'FARMAX POS Backend is operational'
+          : 'FARMAX POS Backend is not ready (database unavailable)',
         data: health,
       });
     } catch (error) {

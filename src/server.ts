@@ -18,7 +18,7 @@ const startServer = async (): Promise<void> => {
 
     // 4. Start listening (default HOST=127.0.0.1 — local-only for initial desktop release)
     const server = httpServer.listen(env.PORT, env.HOST, () => {
-      logger.info(`🚀 Faraz POS Backend started in [${env.NODE_ENV}] mode`);
+      logger.info(`🚀 FARMAX POS Backend started in [${env.NODE_ENV}] mode`);
       logger.info(`🌐 HTTP Server running on http://${env.HOST}:${env.PORT}`);
       logger.info(`🩺 Health Check endpoint: http://${env.HOST}:${env.PORT}/health`);
       logger.info(`📡 API v1 prefix: http://${env.HOST}:${env.PORT}${env.API_PREFIX}`);

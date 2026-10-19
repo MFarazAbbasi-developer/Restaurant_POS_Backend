@@ -48,7 +48,7 @@ async function wipeBusinessData(): Promise<void> {
  */
 const setupWipeAllowed = process.env.ALLOW_SETUP_DB_WIPE === '1';
 
-describe.runIf(setupWipeAllowed)('Faraz POS - First-Run Setup Module', () => {
+describe.runIf(setupWipeAllowed)('FARMAX POS - First-Run Setup Module', () => {
   beforeAll(async () => {
     await wipeBusinessData();
   });

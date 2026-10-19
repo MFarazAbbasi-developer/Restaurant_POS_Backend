@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
 
-describe('Faraz POS - Expenses & Expense Management Module', () => {
+describe('FARMAX POS - Expenses & Expense Management Module', () => {
   let restaurantId: string;
   let otherRestaurantId: string;
   let _ownerToken: string;

@@ -31,7 +31,7 @@ describe('Static Frontend Serving & SPA Routing', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.text).toContain('<div id="root"');
-    expect(res.text).toContain('Faraz POS');
+    expect(res.text).toContain('FARMAX POS');
   });
 
   it.each(['/login', '/orders', '/tables', '/kitchen', '/settings'])(

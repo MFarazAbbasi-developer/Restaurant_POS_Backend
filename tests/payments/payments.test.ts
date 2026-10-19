@@ -3,7 +3,7 @@ import request from 'supertest';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
 
-describe('Faraz POS - Payments & Cash Management Module Tests', () => {
+describe('FARMAX POS - Payments & Cash Management Module Tests', () => {
   let restaurantId: string;
   let otherRestaurantId: string;
 

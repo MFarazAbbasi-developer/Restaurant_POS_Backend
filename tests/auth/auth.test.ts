@@ -10,7 +10,7 @@ import { ApiResponse } from '../../src/common/http/response.js';
 import { errorHandler } from '../../src/common/middlewares/error.middleware.js';
 import express, { type Application } from 'express';
 
-describe('Faraz POS - Authentication Module Tests', () => {
+describe('FARMAX POS - Authentication Module Tests', () => {
   let restaurantId: string;
   let ownerUserId: string;
   let managerUserId: string;

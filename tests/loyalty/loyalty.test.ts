@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
 
-describe('Faraz POS - Loyalty & Customer Rewards Module Tests', () => {
+describe('FARMAX POS - Loyalty & Customer Rewards Module Tests', () => {
   let restaurantAId: string;
   let restaurantBId: string;
 

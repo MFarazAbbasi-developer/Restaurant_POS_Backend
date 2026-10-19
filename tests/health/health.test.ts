@@ -26,7 +26,7 @@ describe('Health Check Endpoints', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveProperty('success', true);
-    expect(response.body).toHaveProperty('message', 'Faraz POS Backend is operational');
+    expect(response.body).toHaveProperty('message', 'FARMAX POS Backend is operational');
     expect(response.body.data).toHaveProperty('status', 'healthy');
     expect(response.body.data).toHaveProperty('timestamp');
     expect(response.body.data).toHaveProperty('uptime');

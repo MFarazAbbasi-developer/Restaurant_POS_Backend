@@ -1,6 +1,6 @@
-# Faraz POS - Backend API
+# FARMAX POS - Backend API
 
-Production-ready backend for **Faraz POS** (Commercial Restaurant Point of Sale & Management System).
+Production-ready backend for **FARMAX POS** (Commercial Restaurant Point of Sale & Management System).
 
 Built with **Node.js**, **TypeScript**, **Express.js**, **PostgreSQL**, **Prisma ORM**, **Docker Compose**, **Zod**, **Pino**, **Socket.IO**, and **Vitest**.
 
@@ -132,7 +132,7 @@ npm run prisma:push
 
 The HTTP server binds to `127.0.0.1` by default (`HOST`). Do not open firewall ports for the initial local-only release.
 
-**Persistent data (Step 3):** packaged Windows installs keep customer data under `%ProgramData%\FarazPOS` (config, logs, future PostgreSQL data, backups), separate from `%ProgramFiles%\Faraz POS`. Development keeps using this repo’s `.env`. See `electron/PERSISTENT_DATA.md` in the desktop workspace.
+**Persistent data (Step 3):** packaged Windows installs keep customer data under `%ProgramData%\FARMAXPOS` (config, logs, future PostgreSQL data, backups), separate from `%ProgramFiles%\FARMAX POS`. Development keeps using this repo’s `.env`. See `electron/PERSISTENT_DATA.md` in the desktop workspace.
 
 #### Database seeding
 
@@ -219,7 +219,7 @@ All API endpoints follow a consistent JSON response standard:
 ```json
 {
   "success": true,
-  "message": "Faraz POS Backend is operational",
+  "message": "FARMAX POS Backend is operational",
   "data": {
     "status": "healthy",
     "timestamp": "2026-08-19T00:00:00.000Z",

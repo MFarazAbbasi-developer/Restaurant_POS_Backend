@@ -1,4 +1,4 @@
-// Faraz POS - Prisma Database Schema
+// FARMAX POS - Prisma Database Schema
 // Multi-Tenant Restaurant Point of Sale & Management System
 
 generator client {

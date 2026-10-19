@@ -3,7 +3,7 @@ import request from 'supertest';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
 
-describe('Faraz POS - Cashier Shifts & Cash Drawer Management Tests', () => {
+describe('FARMAX POS - Cashier Shifts & Cash Drawer Management Tests', () => {
   let restaurantId: string;
   let otherRestaurantId: string;
 

@@ -38,7 +38,7 @@
     "prisma",
     "postgresql"
   ],
-  "author": "Faraz POS Team",
+  "author": "FARMAX POS Team",
   "license": "UNLICENSED",
   "dependencies": {
     "@prisma/client": "6.19.3",

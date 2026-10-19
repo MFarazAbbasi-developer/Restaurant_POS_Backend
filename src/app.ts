@@ -70,7 +70,7 @@ export const createApp = (): Application => {
     '/api/docs',
     swaggerUi.serve,
     swaggerUi.setup(openApiSpecification, {
-      customSiteTitle: 'Faraz POS - API Documentation',
+      customSiteTitle: 'FARMAX POS - API Documentation',
       swaggerOptions: {
         persistAuthorization: true,
         displayRequestDuration: true,

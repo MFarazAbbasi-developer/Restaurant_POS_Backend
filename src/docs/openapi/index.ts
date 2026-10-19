@@ -26,12 +26,12 @@ import { setupPaths } from './paths/setup.docs.js';
 export const openApiSpecification = {
   openapi: '3.0.3',
   info: {
-    title: 'Faraz POS Backend API',
+    title: 'FARMAX POS Backend API',
     version: '0.1.0',
     description: `
-## Faraz Commercial Restaurant Point of Sale & Management System
+## FARMAX Commercial Restaurant Point of Sale & Management System
 
-Welcome to the Faraz POS REST API documentation.
+Welcome to the FARMAX POS REST API documentation.
 
 ### Core Architectural Principles
 - **Multi-Tenant Isolation**: Every operational query and mutation is strictly scoped to the authenticated tenant \`restaurantId\`.
@@ -42,7 +42,7 @@ Welcome to the Faraz POS REST API documentation.
 - **Real-Time WebSocket Synchronization**: Real-time event broadcasting powered by Socket.IO.
 `,
     contact: {
-      name: 'Faraz POS Engineering Team',
+      name: 'FARMAX POS Engineering Team',
       email: 'support@farazpos.com',
     },
   },

@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
 
-describe('Faraz POS - Kitchen Display System (KDS) & Operations Module Tests', () => {
+describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', () => {
   let restaurantAId: string;
   let restaurantBId: string;
 
