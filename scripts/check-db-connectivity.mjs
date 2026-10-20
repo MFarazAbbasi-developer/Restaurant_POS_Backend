@@ -12,7 +12,7 @@ const { PrismaClient } = require('@prisma/client');
 
 async function main() {
   if (!process.env.DATABASE_URL) {
-    console.error('[db-check] DATABASE_URL is not set');
+    console.error('[db-check] FAILED: DATABASE_URL is not set');
     process.exit(1);
   }
 
@@ -27,6 +27,12 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[db-check] FAILED:', error instanceof Error ? error.message : error);
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+  const msg = error instanceof Error ? error.message : String(error);
+  if (code) {
+    console.error(`[db-check] FAILED (${code}): ${msg}`);
+  } else {
+    console.error(`[db-check] FAILED: ${msg}`);
+  }
   process.exit(1);
 });
