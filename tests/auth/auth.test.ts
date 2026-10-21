@@ -387,6 +387,10 @@ describe('FARMAX POS - Authentication Module Tests', () => {
         id: restaurantId,
         slug: 'faraz-flagship',
         currency: 'PKR',
+        taxRate: 16.0,
+        taxInclusive: expect.any(Boolean),
+        serviceChargeRate: expect.any(Number),
+        serviceChargeEnabled: expect.any(Boolean),
       });
       expect(response.body.data.user.roles).toHaveLength(1);
       expect(response.body.data.user.roles[0].name).toBe('OWNER');
