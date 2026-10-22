@@ -25,7 +25,7 @@ describe('FARMAX POS - Core Order & Billing Module Tests', () => {
   beforeAll(async () => {
     // 1. Fetch primary seeded restaurant
     const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: 'faraz-flagship' },
+      where: { slug: 'flagship-shinwari' },
     });
     if (!restaurant) {
       throw new Error('Database not seeded! Please run prisma seed.');

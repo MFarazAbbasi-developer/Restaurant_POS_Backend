@@ -28,7 +28,7 @@ describe('FARMAX POS - Authentication Module Tests', () => {
   beforeAll(async () => {
     // 1. Fetch the seeded default restaurant
     const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: 'faraz-flagship' },
+      where: { slug: 'flagship-shinwari' },
     });
     if (!restaurant) {
       throw new Error(
@@ -214,7 +214,7 @@ describe('FARMAX POS - Authentication Module Tests', () => {
     it('should support password login for administrative users', async () => {
       const response = await request(app).post('/api/v1/auth/login').send({
         username: 'owner_admin',
-        password: 'FarazAdmin2026!',
+        password: 'FlagshipAdmin2026!',
       });
 
       expect(response.status).toBe(200);
@@ -380,12 +380,12 @@ describe('FARMAX POS - Authentication Module Tests', () => {
       expect(response.body.data.user).toMatchObject({
         id: ownerUserId,
         username: 'owner_admin',
-        name: 'Faraz Owner',
+        name: 'Flagship Owner',
         isActive: true,
       });
       expect(response.body.data.user.restaurant).toMatchObject({
         id: restaurantId,
-        slug: 'faraz-flagship',
+        slug: 'flagship-shinwari',
         currency: 'PKR',
         taxRate: 16.0,
         taxInclusive: expect.any(Boolean),

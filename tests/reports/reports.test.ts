@@ -32,8 +32,8 @@ describe('FARMAX POS - Reporting & Analytics Module Tests', () => {
     // 1. Create Dedicated Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Reports Flagship',
-        slug: 'faraz-reports-suite-' + Date.now(),
+        name: 'Reports Flagship Suite',
+        slug: 'reports-suite-' + Date.now(),
         currency: 'USD',
         taxRate: 10.0,
         taxInclusive: false,
@@ -46,8 +46,8 @@ describe('FARMAX POS - Reporting & Analytics Module Tests', () => {
     // 2. Create Restaurant B for isolation tests
     const restaurantB = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Branch Reports Test',
-        slug: 'faraz-reports-branch-' + Date.now(),
+        name: 'Branch Reports Test',
+        slug: 'reports-branch-' + Date.now(),
         currency: 'PKR',
       },
     });

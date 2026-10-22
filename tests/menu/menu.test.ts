@@ -19,7 +19,7 @@ describe('FARMAX POS - Menu Management Module Tests', () => {
   beforeAll(async () => {
     // 1. Fetch default restaurant
     const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: 'faraz-flagship' },
+      where: { slug: 'flagship-shinwari' },
     });
     if (!restaurant) {
       throw new Error('Database not seeded!');

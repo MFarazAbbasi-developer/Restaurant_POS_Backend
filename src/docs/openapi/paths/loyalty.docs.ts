@@ -28,7 +28,7 @@ export const loyaltyPaths = {
               type: 'object',
               properties: {
                 isEnabled: { type: 'boolean', example: true },
-                programName: { type: 'string', example: 'Faraz VIP Rewards' },
+                programName: { type: 'string', example: 'FARMAX VIP Rewards' },
                 pointsPerCurrencyUnit: { type: 'number', example: 1.0 },
                 redemptionRate: { type: 'number', example: 0.01 },
                 minPointsToRedeem: { type: 'integer', example: 50 },

@@ -34,7 +34,7 @@ export class LoyaltyService {
         data: {
           restaurantId,
           isEnabled: true,
-          programName: 'Faraz Rewards Club',
+          programName: 'FARMAX Rewards Club',
           pointsPerCurrencyUnit: 1.0,
           redemptionRate: new Prisma.Decimal('0.01'), // 100 points = $1.00
           minPointsToRedeem: 50,

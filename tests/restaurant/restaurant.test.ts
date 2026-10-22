@@ -11,7 +11,7 @@ describe('FARMAX POS - Restaurant Configuration Module Tests', () => {
   beforeAll(async () => {
     // 1. Fetch default restaurant
     const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: 'faraz-flagship' },
+      where: { slug: 'flagship-shinwari' },
     });
     if (!restaurant) {
       throw new Error('Database not seeded!');
@@ -38,8 +38,8 @@ describe('FARMAX POS - Restaurant Configuration Module Tests', () => {
     await prisma.restaurant.update({
       where: { id: restaurantId },
       data: {
-        name: 'Faraz Shinwari & Desi Dera',
-        legalName: 'Faraz Hospitality Group (Pvt) Ltd',
+        name: 'Flagship Shinwari & Desi Dera',
+        legalName: 'Flagship Hospitality Group (Pvt) Ltd',
         phone: '+92 42 3575 8899',
         address: 'Plot 14-C, MM Alam Road, Gulberg III, Lahore, Punjab, Pakistan',
         currency: 'PKR',
@@ -53,9 +53,9 @@ describe('FARMAX POS - Restaurant Configuration Module Tests', () => {
         takeawayEnabled: true,
         deliveryEnabled: true,
         receiptHeader:
-          'Bismillah-ir-Rahman-ir-Rahim\nWelcome to Faraz Shinwari & Desi Dera\nAuthentic Koyla BBQ, Shinwari Karahi & Desi Handi\nMM Alam Road, Gulberg III, Lahore',
+          'Bismillah-ir-Rahman-ir-Rahim\nWelcome to Flagship Shinwari & Desi Dera\nAuthentic Koyla BBQ, Shinwari Karahi & Desi Handi\nMM Alam Road, Gulberg III, Lahore',
         receiptFooter:
-          'Thank you for dining with us! Shukriya!\nFor Catering & Family Reservations: 0300-1234567\nFollow us on Instagram: @farazshinwaridera',
+          'Thank you for dining with us! Shukriya!\nFor Catering & Family Reservations: 0300-1234567\nFollow us on Instagram: @flagshipshinwaridera',
       },
     });
   });
@@ -71,8 +71,8 @@ describe('FARMAX POS - Restaurant Configuration Module Tests', () => {
       expect(response.body.message).toBe('Restaurant configuration retrieved successfully');
       expect(response.body.data.restaurant).toMatchObject({
         id: restaurantId,
-        name: 'Faraz Shinwari & Desi Dera',
-        slug: 'faraz-flagship',
+        name: 'Flagship Shinwari & Desi Dera',
+        slug: 'flagship-shinwari',
         currency: 'PKR',
         timezone: 'Asia/Karachi',
         dineInEnabled: true,
@@ -105,8 +105,8 @@ describe('FARMAX POS - Restaurant Configuration Module Tests', () => {
   describe('2. PATCH /api/v1/restaurant', () => {
     it('should allow OWNER to update identity, billing, order types, and receipt headers', async () => {
       const updatePayload = {
-        name: 'Faraz Grand Bistro & Lounge',
-        legalName: 'Faraz Grand Hospitality Inc.',
+        name: 'Grand Bistro & Lounge',
+        legalName: 'Grand Hospitality Inc.',
         phone: '+1 (555) 999-0000',
         address: '200 Luxury Blvd, Penthouse 1, New York, NY 10002',
         taxNumber: 'TAX-998877-NY',
@@ -117,8 +117,8 @@ describe('FARMAX POS - Restaurant Configuration Module Tests', () => {
         dineInEnabled: true,
         takeawayEnabled: true,
         deliveryEnabled: false,
-        receiptHeader: '*** FARAZ GRAND BISTRO ***\nTable for Champions',
-        receiptFooter: 'Tips are appreciated. Follow us @farazgrand',
+        receiptHeader: '*** GRAND BISTRO ***\nTable for Champions',
+        receiptFooter: 'Tips are appreciated. Follow us @grandbistro',
       };
 
       const response = await request(app)

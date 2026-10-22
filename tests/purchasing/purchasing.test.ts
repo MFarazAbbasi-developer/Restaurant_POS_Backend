@@ -25,8 +25,8 @@ describe('FARMAX POS - Purchasing & Supplier Management Module Tests', () => {
     // 1. Create Dedicated Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Purchasing Bistro',
-        slug: 'faraz-purchasing-suite-' + Date.now(),
+        name: 'Purchasing Flagship Suite',
+        slug: 'purchasing-suite-' + Date.now(),
         currency: 'PKR',
       },
     });
@@ -35,8 +35,8 @@ describe('FARMAX POS - Purchasing & Supplier Management Module Tests', () => {
     // 2. Create Restaurant B for isolation tests
     const restaurantB = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Branch Purchasing Test',
-        slug: 'faraz-branch-purchasing-' + Date.now(),
+        name: 'Branch Purchasing Test',
+        slug: 'branch-purchasing-' + Date.now(),
         currency: 'PKR',
       },
     });

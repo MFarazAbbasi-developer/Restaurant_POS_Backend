@@ -1791,7 +1791,7 @@ model LoyaltyProgram {
   id                    String              @id @default(uuid())
   restaurantId          String              @unique
   isEnabled             Boolean             @default(true)
-  programName           String              @default("Faraz Rewards")
+  programName           String              @default("FARMAX Rewards Club")
   pointsPerCurrencyUnit Float               @default(1.0)
   redemptionRate        Decimal             @default(0.01) @db.Decimal(10, 4)
   minPointsToRedeem     Int                 @default(50)

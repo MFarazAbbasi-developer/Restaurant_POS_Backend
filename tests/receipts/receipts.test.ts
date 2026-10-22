@@ -32,14 +32,14 @@ describe('FARMAX POS - Receipt & Printing Management Module Tests', () => {
     // 1. Create Dedicated Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Flagship Bistro',
-        slug: 'faraz-receipts-suite-' + Date.now(),
-        legalName: 'Faraz Flagship Bistro Pvt. Ltd.',
+        name: 'Flagship Bistro',
+        slug: 'receipts-suite-' + Date.now(),
+        legalName: 'Flagship Bistro Pvt. Ltd.',
         phone: '+92 51 1122334',
         address: 'Plot 14-B, Blue Area, Sector F-6, Islamabad',
         taxNumber: 'NTN-99887766-1',
         receiptHeader: 'Welcome to the Premier Dining Experience',
-        receiptFooter: 'Feedback: feedback@farazpos.com | WiFi: FarazGuest',
+        receiptFooter: 'Feedback: feedback@example.com | WiFi: GuestWiFi',
         currency: 'USD',
         taxRate: 16.0,
         taxInclusive: false,
@@ -52,8 +52,8 @@ describe('FARMAX POS - Receipt & Printing Management Module Tests', () => {
     // 2. Create Restaurant B for isolation tests
     const restaurantB = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Branch Receipts Test',
-        slug: 'faraz-branch-receipts-' + Date.now(),
+        name: 'Branch Receipts Test',
+        slug: 'branch-receipts-' + Date.now(),
         currency: 'PKR',
       },
     });
@@ -407,8 +407,8 @@ describe('FARMAX POS - Receipt & Printing Management Module Tests', () => {
       expect(receipt.isReprint).toBe(false);
 
       // Restaurant branding
-      expect(receipt.restaurant.name).toBe('Faraz Flagship Bistro');
-      expect(receipt.restaurant.legalName).toBe('Faraz Flagship Bistro Pvt. Ltd.');
+      expect(receipt.restaurant.name).toBe('Flagship Bistro');
+      expect(receipt.restaurant.legalName).toBe('Flagship Bistro Pvt. Ltd.');
       expect(receipt.restaurant.phone).toBe('+92 51 1122334');
       expect(receipt.restaurant.taxNumber).toBe('NTN-99887766-1');
       expect(receipt.restaurant.receiptHeader).toBe('Welcome to the Premier Dining Experience');
@@ -446,7 +446,7 @@ describe('FARMAX POS - Receipt & Printing Management Module Tests', () => {
 
       // Rendered ASCII slip
       expect(typeof receipt.renderedSlip).toBe('string');
-      expect(receipt.renderedSlip).toContain('Faraz Flagship Bistro');
+      expect(receipt.renderedSlip).toContain('Flagship Bistro');
       expect(receipt.renderedSlip).toContain('CUSTOMER RECEIPT');
       expect(receipt.renderedSlip).toContain('Angus Gourmet Burger');
       expect(receipt.renderedSlip).toContain('Aged Cheddar Slice');
@@ -609,11 +609,11 @@ describe('FARMAX POS - Receipt & Printing Management Module Tests', () => {
       expect(res.body.success).toBe(true);
 
       const receipt = res.body.data.receipt;
-      expect(receipt.restaurant.name).toBe('Faraz Flagship Bistro');
+      expect(receipt.restaurant.name).toBe('Flagship Bistro');
       expect(receipt.restaurant.receiptHeader).toBe('Welcome to the Premier Dining Experience');
       expect(receipt.items.length).toBeGreaterThanOrEqual(1);
       expect(typeof receipt.renderedSlip).toBe('string');
-      expect(receipt.renderedSlip).toContain('Faraz Flagship Bistro');
+      expect(receipt.renderedSlip).toContain('Flagship Bistro');
       expect(receipt.renderedSlip).toContain('GRAND TOTAL');
     });
   });

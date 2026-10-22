@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import pino, { type LoggerOptions, type DestinationStream } from 'pino';
-import { env } from './env.js';
+import { env, resolvePersistentLogDir } from './env.js';
 
 const pinoOptions: LoggerOptions = {
   level: env.LOG_LEVEL,
@@ -16,7 +16,7 @@ const pinoOptions: LoggerOptions = {
  * Desktop injects LOG_DIR from the path abstraction (ProgramData / LocalAppData).
  */
 function createFileDestination(): DestinationStream | undefined {
-  const logDir = env.LOG_DIR || env.FARAZ_POS_LOG_DIR;
+  const logDir = resolvePersistentLogDir();
   if (!logDir) {
     return undefined;
   }
@@ -61,9 +61,10 @@ function createLogger() {
 
 export const logger = createLogger();
 
-if (fileDestination && (env.LOG_DIR || env.FARAZ_POS_LOG_DIR)) {
+const resolvedLogDir = resolvePersistentLogDir();
+if (fileDestination && resolvedLogDir) {
   logger.info(
-    { logDir: env.LOG_DIR || env.FARAZ_POS_LOG_DIR },
+    { logDir: resolvedLogDir },
     'Backend file logging enabled (persistent LOG_DIR)',
   );
 }

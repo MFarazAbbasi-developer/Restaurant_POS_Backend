@@ -159,7 +159,7 @@ Setup module tests wipe tenant tables and are gated. Against a disposable databa
 
 ```bash
 # PowerShell example
-$env:DATABASE_URL = "postgresql://pos_admin:pos_password_123@localhost:5432/faraz_pos_setup_test?schema=public"
+$env:DATABASE_URL = "postgresql://pos_admin:pos_password_123@localhost:5432/farmax_pos_setup_test?schema=public"
 npm run test:setup
 ```
 

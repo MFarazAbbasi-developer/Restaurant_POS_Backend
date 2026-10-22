@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: faraz_pos_postgres
+    container_name: farmax_pos_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: pos_admin
       POSTGRES_PASSWORD: pos_password_123
-      POSTGRES_DB: faraz_pos_db
+      POSTGRES_DB: farmax_pos_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pos_admin -d faraz_pos_db"]
+      test: ["CMD-SHELL", "pg_isready -U pos_admin -d farmax_pos_db"]
       interval: 5s
       timeout: 5s
       retries: 5

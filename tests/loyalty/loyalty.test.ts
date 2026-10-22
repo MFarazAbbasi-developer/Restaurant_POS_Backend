@@ -22,8 +22,8 @@ describe('FARMAX POS - Loyalty & Customer Rewards Module Tests', () => {
     // 1. Create Dedicated Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Loyalty Flagship',
-        slug: 'faraz-loyalty-suite-' + Date.now(),
+        name: 'Loyalty Flagship Suite',
+        slug: 'loyalty-suite-' + Date.now(),
         currency: 'USD',
         taxRate: 0,
         taxInclusive: false,
@@ -36,8 +36,8 @@ describe('FARMAX POS - Loyalty & Customer Rewards Module Tests', () => {
     // 2. Create Restaurant B for isolation tests
     const restaurantB = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Branch Loyalty Test',
-        slug: 'faraz-loyalty-branch-' + Date.now(),
+        name: 'Branch Loyalty Test',
+        slug: 'loyalty-branch-' + Date.now(),
         currency: 'USD',
       },
     });
@@ -236,6 +236,7 @@ describe('FARMAX POS - Loyalty & Customer Rewards Module Tests', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.program).toBeDefined();
       expect(res.body.data.program.isEnabled).toBe(true);
+      expect(res.body.data.program.programName).toBe('FARMAX Rewards Club');
       expect(res.body.data.program.pointsPerCurrencyUnit).toBe(1.0);
       expect(res.body.data.program.redemptionRate).toBe(0.01);
     });
@@ -245,7 +246,7 @@ describe('FARMAX POS - Loyalty & Customer Rewards Module Tests', () => {
         .put('/api/v1/loyalty/program')
         .set('Authorization', managerAToken)
         .send({
-          programName: 'Faraz Elite Rewards Club',
+          programName: 'Elite Rewards Club',
           pointsPerCurrencyUnit: 2.0,
           redemptionRate: 0.02, // 50 points = $1.00
           minPointsToRedeem: 25,
@@ -255,7 +256,7 @@ describe('FARMAX POS - Loyalty & Customer Rewards Module Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.program.programName).toBe('Faraz Elite Rewards Club');
+      expect(res.body.data.program.programName).toBe('Elite Rewards Club');
       expect(res.body.data.program.pointsPerCurrencyUnit).toBe(2.0);
       expect(res.body.data.program.redemptionRate).toBe(0.02);
       expect(res.body.data.program.minPointsToRedeem).toBe(25);

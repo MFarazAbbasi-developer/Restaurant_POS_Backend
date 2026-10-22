@@ -22,8 +22,8 @@ describe('FARMAX POS - Reservations & Table Booking Management Module Tests', ()
     // 1. Create Dedicated Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Dining Flagship',
-        slug: 'faraz-reservations-suite-' + Date.now(),
+        name: 'Dining Flagship Suite',
+        slug: 'reservations-suite-' + Date.now(),
         currency: 'PKR',
       },
     });
@@ -32,8 +32,8 @@ describe('FARMAX POS - Reservations & Table Booking Management Module Tests', ()
     // 2. Create Restaurant B for isolation tests
     const restaurantB = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Branch Res Test',
-        slug: 'faraz-res-branch-' + Date.now(),
+        name: 'Branch Reservations Test',
+        slug: 'reservations-branch-' + Date.now(),
         currency: 'PKR',
       },
     });

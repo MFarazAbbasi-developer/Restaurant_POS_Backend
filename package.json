@@ -1,7 +1,7 @@
 {
-  "name": "faraz-pos-backend",
+  "name": "farmax-pos-backend",
   "version": "0.1.0",
-  "description": "Commercial Restaurant Point of Sale & Management System - Backend API",
+  "description": "FARMAX POS Commercial Restaurant Point of Sale & Management System - Backend API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",

@@ -30,8 +30,8 @@ describe('FARMAX POS - Inventory & Stock Management Module Tests', () => {
     // 1. Create Dedicated Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Inventory Flagship',
-        slug: 'faraz-inventory-suite-' + Date.now(),
+        name: 'Inventory Flagship Suite',
+        slug: 'inventory-suite-' + Date.now(),
         currency: 'USD',
         taxRate: 10.0,
         taxInclusive: false,
@@ -42,8 +42,8 @@ describe('FARMAX POS - Inventory & Stock Management Module Tests', () => {
     // 2. Create Restaurant B for isolation tests
     const restaurantB = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Branch Inventory Test',
-        slug: 'faraz-branch-inventory-' + Date.now(),
+        name: 'Branch Inventory Test',
+        slug: 'branch-inventory-' + Date.now(),
         currency: 'PKR',
       },
     });
@@ -129,7 +129,7 @@ describe('FARMAX POS - Inventory & Stock Management Module Tests', () => {
     const ownerAUser = await prisma.user.create({
       data: {
         restaurantId: restaurantAId,
-        name: 'Owner Faraz',
+        name: 'Owner Flagship',
         username: 'owner_inventory_' + Date.now(),
         pinHash,
       },

@@ -43,7 +43,7 @@ Welcome to the FARMAX POS REST API documentation.
 `,
     contact: {
       name: 'FARMAX POS Engineering Team',
-      email: 'support@farazpos.com',
+      email: 'support@farmaxpos.com',
     },
   },
   servers: [

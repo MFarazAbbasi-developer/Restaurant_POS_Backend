@@ -74,7 +74,7 @@ async function main() {
   assertDestructiveSeedAllowed();
 
   console.log(
-    '🇵🇰 Starting DESTRUCTIVE Pakistani demo seed ("Faraz Shinwari & Desi Dera")...\n',
+    '🇵🇰 Starting DESTRUCTIVE Pakistani demo seed ("Flagship Shinwari & Desi Dera")...\n',
   );
   console.log('⚠️  ALLOW_DESTRUCTIVE_SEED=1 detected — database will be wiped.\n');
 
@@ -102,9 +102,9 @@ async function main() {
   console.log('\n🏪 [3/10] Seeding single Pakistani Restaurant Profile...');
   const restaurant = await prisma.restaurant.create({
     data: {
-      name: 'Faraz Shinwari & Desi Dera',
-      slug: 'faraz-flagship',
-      legalName: 'Faraz Hospitality Group (Pvt) Ltd',
+      name: 'Flagship Shinwari & Desi Dera',
+      slug: 'flagship-shinwari',
+      legalName: 'Flagship Hospitality Group (Pvt) Ltd',
       phone: '+92 42 3575 8899',
       address: 'Plot 14-C, MM Alam Road, Gulberg III, Lahore, Punjab, Pakistan',
       currency: 'PKR',
@@ -117,8 +117,8 @@ async function main() {
       dineInEnabled: true,
       takeawayEnabled: true,
       deliveryEnabled: true,
-      receiptHeader: 'Bismillah-ir-Rahman-ir-Rahim\nWelcome to Faraz Shinwari & Desi Dera\nAuthentic Koyla BBQ, Shinwari Karahi & Desi Handi\nMM Alam Road, Gulberg III, Lahore',
-      receiptFooter: 'Thank you for dining with us! Shukriya!\nFor Catering & Family Reservations: 0300-1234567\nFollow us on Instagram: @farazshinwaridera',
+      receiptHeader: 'Bismillah-ir-Rahman-ir-Rahim\nWelcome to Flagship Shinwari & Desi Dera\nAuthentic Koyla BBQ, Shinwari Karahi & Desi Handi\nMM Alam Road, Gulberg III, Lahore',
+      receiptFooter: 'Thank you for dining with us! Shukriya!\nFor Catering & Family Reservations: 0300-1234567\nFollow us on Instagram: @flagshipshinwaridera',
       isActive: true,
     },
   });
@@ -160,7 +160,7 @@ async function main() {
   // ---------------------------------------------------------------------------
   console.log('\n👤 [5/10] Seeding staff user roster...');
   const staffList = [
-    { username: 'owner_admin', name: 'Faraz Owner', role: 'OWNER', pin: '1234', password: 'FarazAdmin2026!', phone: '+923001234560' },
+    { username: 'owner_admin', name: 'Flagship Owner', role: 'OWNER', pin: '1234', password: 'FlagshipAdmin2026!', phone: '+923001234560' },
     { username: 'manager_john', name: 'Hamza Manager', role: 'MANAGER', pin: '2233', password: 'ManagerPass2026!', phone: '+923001234561' },
     { username: 'cashier_sarah', name: 'Sarah Cashier', role: 'CASHIER', pin: '4321', password: 'CashierPass2026!', phone: '+923001234562' },
     { username: 'waiter_alex', name: 'Bilal Waiter', role: 'WAITER', pin: '1122', phone: '+923001234563' },
@@ -1103,7 +1103,7 @@ async function main() {
 
   console.log('\n=============================================================');
   console.log('🎉 PAKISTANI RESTAURANT SEED COMPLETE!');
-  console.log('🏪 Restaurant: Faraz Shinwari & Desi Dera (Lahore, Pakistan)');
+  console.log('🏪 Restaurant: Flagship Shinwari & Desi Dera (Lahore, Pakistan)');
   console.log('💵 Currency: PKR (Pakistani Rupee Rs.) | Tax: 16% PRA');
   console.log('🍛 Menu: 35+ Authentic Shinwari, BBQ, Handi, Biryani, Naan & Chai items');
   console.log('👤 Logins (Quick PINs):');

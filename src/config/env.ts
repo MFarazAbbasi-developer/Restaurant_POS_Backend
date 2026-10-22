@@ -3,11 +3,12 @@ import { z } from 'zod';
 
 /**
  * Load env files without overriding variables already set by the desktop shell.
- * Production desktop prefers FARAZ_POS_CONFIG_FILE (persistent ProgramData config).
+ * Production desktop prefers FARMAX_POS_CONFIG_FILE.
  * Development continues to use local .env in the backend cwd.
  */
-if (process.env.FARAZ_POS_CONFIG_FILE) {
-  dotenv.config({ path: process.env.FARAZ_POS_CONFIG_FILE });
+const configFile = process.env.FARMAX_POS_CONFIG_FILE?.trim();
+if (configFile) {
+  dotenv.config({ path: configFile });
 }
 dotenv.config();
 
@@ -31,16 +32,17 @@ const envSchema = z.object({
    * When set, backend also writes JSON logs under this directory.
    */
   LOG_DIR: z.string().optional(),
-  FARAZ_POS_DATA_DIR: z.string().optional(),
-  FARAZ_POS_CONFIG_DIR: z.string().optional(),
-  FARAZ_POS_CONFIG_FILE: z.string().optional(),
-  FARAZ_POS_LOG_DIR: z.string().optional(),
-  FARAZ_POS_POSTGRES_DATA_DIR: z.string().optional(),
-  FARAZ_POS_BACKUP_DIR: z.string().optional(),
+  FARMAX_POS_DATA_DIR: z.string().optional(),
+  FARMAX_POS_CONFIG_DIR: z.string().optional(),
+  FARMAX_POS_CONFIG_FILE: z.string().optional(),
+  FARMAX_POS_LOG_DIR: z.string().optional(),
+  FARMAX_POS_POSTGRES_DATA_DIR: z.string().optional(),
+  FARMAX_POS_BACKUP_DIR: z.string().optional(),
   JWT_ACCESS_SECRET: z
     .string()
     .min(16, 'JWT_ACCESS_SECRET must be at least 16 characters')
-    .default('faraz-pos-jwt-access-secret-default-key-dev-2026'),
+    // Dev-only default. Production / packaged desktop must set JWT_ACCESS_SECRET explicitly.
+    .default('farmax-pos-jwt-access-secret-default-key-dev-2026'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_DAYS: z
     .string()
@@ -66,8 +68,26 @@ const parseEnv = () => {
     process.exit(1);
   }
 
-  return result.data;
+  const data = result.data;
+  // Packaged / production desktop must set an explicit secret — never ship on the
+  // development default (renaming the default string alone would still be weak).
+  if (
+    data.NODE_ENV === 'production' &&
+    (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_ACCESS_SECRET.trim())
+  ) {
+    console.error(
+      '❌ JWT_ACCESS_SECRET must be set explicitly in production (do not rely on the development default).',
+    );
+    process.exit(1);
+  }
+
+  return data;
 };
 
 export const env = parseEnv();
 export type Env = z.infer<typeof envSchema>;
+
+/** Resolved persistent log directory: LOG_DIR → FARMAX_POS_LOG_DIR */
+export function resolvePersistentLogDir(): string | undefined {
+  return env.LOG_DIR || env.FARMAX_POS_LOG_DIR;
+}

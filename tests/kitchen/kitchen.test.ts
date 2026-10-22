@@ -26,8 +26,8 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
     // 1. Create Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Kitchen Flagship',
-        slug: 'faraz-kitchen-suite-' + Date.now(),
+        name: 'Kitchen Flagship Suite',
+        slug: 'kitchen-suite-' + Date.now(),
         currency: 'USD',
       },
     });
@@ -36,8 +36,8 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
     // 2. Create Restaurant B for isolation tests
     const restaurantB = await prisma.restaurant.create({
       data: {
-        name: 'Faraz Branch KDS Test',
-        slug: 'faraz-branch-kds-' + Date.now(),
+        name: 'Branch KDS Test',
+        slug: 'branch-kds-' + Date.now(),
         currency: 'PKR',
       },
     });
