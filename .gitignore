@@ -28,6 +28,12 @@ dist/
 .env.*.local
 !.env.example
 
+# Host licensing identity (private key / DPAPI blobs — never commit)
+.farmax-host-identity/
+
+# Host TLS credentials (private key DPAPI blobs — never commit)
+.farmax-host-tls/
+
 # IDE & OS
 .vscode/
 .idea/

@@ -46,12 +46,24 @@ export const createApp = (): Application => {
         'x-request-id',
         'x-terminal-id',
         'x-client-platform',
+        // Plane B (FARMAX-LAN-CLIENT-REQUEST-V1) — future LAN clients
+        'X-Farmax-Terminal-Id',
+        'X-Farmax-Timestamp',
+        'X-Farmax-Nonce',
+        'X-Farmax-Signature',
       ],
     }),
   );
 
-  // 3. Request Parsers
-  app.use(express.json({ limit: '10mb' }));
+  // 3. Request Parsers — capture exact raw body bytes for Plane B signature verification
+  app.use(
+    express.json({
+      limit: '10mb',
+      verify: (req, _res, buf) => {
+        (req as express.Request).rawBody = Buffer.from(buf);
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // 4. Request Logging

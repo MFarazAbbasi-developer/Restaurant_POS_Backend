@@ -180,6 +180,16 @@ export const DEFAULT_PERMISSIONS: ReadonlyArray<{ key: string; description: stri
     description: 'Confirm, seat, mark no-show, or cancel reservations',
   },
 
+  // LAN terminals (Phase 2D.3 / 2D.7 — host-local roster + pairing)
+  {
+    key: 'terminals.revoke',
+    description: 'Deny a paired LAN terminal locally and synchronize deactivation to licensing cloud',
+  },
+  {
+    key: 'terminals.pair',
+    description: 'Create pairing invitations and approve joining LAN terminals on the host',
+  },
+
   // System Administration & Settings
   { key: 'users.view', description: 'View staff user list' },
   {
@@ -270,6 +280,8 @@ export const ROLE_PERMISSIONS_MAP: Record<
       'users.view',
       'settings.view',
       'audit.view',
+      'terminals.revoke',
+      'terminals.pair',
     ],
   },
   CASHIER: {

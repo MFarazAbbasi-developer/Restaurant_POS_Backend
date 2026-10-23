@@ -81,10 +81,147 @@ model Restaurant {
   purchaseReturns        PurchaseReturn[]
   expenseCategories      ExpenseCategory[]
   expenses               Expense[]
+  lanTerminals           LanTerminal[]
+  lanTerminalNonces      LanTerminalRequestNonce[]
+  lanPairingInvitations  LanPairingInvitation[]
+  hostLicensingTrust     HostLicensingTrustState?
 
   @@index([slug])
   @@index([isActive])
   @@map("restaurants")
+}
+
+// -----------------------------------------------------------------------------
+// LAN multi-terminal roster (Phase 2D.3) — host-local; not the licensing cloud DB
+// -----------------------------------------------------------------------------
+enum LanTerminalLocalStatus {
+  ACTIVE
+  DENIED
+}
+
+enum LanCloudSyncStatus {
+  IN_SYNC
+  PENDING_DEACTIVATE
+  SYNC_FAILED
+}
+
+enum LanPairingInvitationStatus {
+  OPEN
+  AWAITING_APPROVAL
+  REDEEMED
+  CANCELLED
+  EXPIRED
+}
+
+/// Host-local mirror of a cloud-registered LAN client terminal (Plane B auth).
+/// Never stores client private keys or pairing invitation secrets.
+model LanTerminal {
+  id                   String                @id @default(uuid())
+  restaurantId         String
+  /// Opaque cloud TerminalActivation.activationId
+  terminalId           String
+  /// Canonical Ed25519 SPKI DER, unpadded base64url
+  publicKeySpkiB64     String
+  /// SHA-256 hex of canonical SPKI DER
+  fingerprintSha256Hex String
+  label                String?
+  localStatus          LanTerminalLocalStatus @default(ACTIVE)
+  cloudSyncStatus      LanCloudSyncStatus     @default(IN_SYNC)
+  deniedAt             DateTime?
+  deniedReason         String?
+  deniedByUserId       String?
+  lastCloudSyncAt      DateTime?
+  cloudSyncError       String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, terminalId])
+  @@index([restaurantId, localStatus])
+  @@index([restaurantId, fingerprintSha256Hex])
+  @@index([cloudSyncStatus])
+  @@map("lan_terminals")
+}
+
+/// Durable Plane B nonce replay protection (survives restarts).
+model LanTerminalRequestNonce {
+  id           String   @id @default(uuid())
+  restaurantId String
+  terminalId   String
+  nonce        String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, terminalId, nonce])
+  @@index([expiresAt])
+  @@index([restaurantId, terminalId])
+  @@map("lan_terminal_request_nonces")
+}
+
+/// Short-lived single-use LAN pairing invitation (Phase 2D.7).
+/// Stores only a hash of the invitation secret — never the plaintext token.
+model LanPairingInvitation {
+  id                              String                      @id @default(uuid())
+  restaurantId                    String
+  /// SHA-256 hex of the invitation secret (CSPRNG ≥128-bit).
+  tokenHashSha256Hex              String
+  status                          LanPairingInvitationStatus  @default(OPEN)
+  protocolVersion                 Int                         @default(1)
+  /// Bound host Ed25519 fingerprint at issuance.
+  hostFingerprintSha256Hex        String
+  /// Bound active TLS certificate fingerprint at issuance.
+  tlsCertificateFingerprintSha256Hex String
+  installationBindingId           String
+  licenseId                       String
+  expiresAt                       DateTime
+  attemptCount                    Int                         @default(0)
+  maxAttempts                     Int                         @default(5)
+  createdByUserId                 String?
+  /// Pending client identity awaiting manager approval (canonical SPKI).
+  pendingClientPublicKeySpkiB64   String?
+  pendingClientFingerprintSha256Hex String?
+  pendingClientLabel              String?
+  redeemedTerminalId              String?
+  redeemedAt                      DateTime?
+  cancelledAt                     DateTime?
+  createdAt                       DateTime                    @default(now())
+  updatedAt                       DateTime                    @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@index([expiresAt])
+  @@index([tokenHashSha256Hex])
+  @@map("lan_pairing_invitations")
+}
+
+/// Per-restaurant licensing trust watermark / cached entitlement metadata (Phase 2D.3 / 2D.4).
+/// Host private key is NEVER stored here — only public binding + verified cache.
+model HostLicensingTrustState {
+  id                         String    @id @default(uuid())
+  restaurantId               String    @unique
+  /// Monotonic watermark: max trusted UTC instant observed (refresh/verify / Plane B).
+  lastTrustedUtc             DateTime
+  installationBindingId      String?
+  licenseId                  String?
+  /// Public host key (SPKI base64url) mirrored from OS-protected identity store.
+  hostPublicKeySpkiB64       String?
+  hostKeyFingerprintSha256Hex String?
+  installationNonce          String?
+  /// Snapshot of last successfully verified entitlement document (claims+signature), no secrets.
+  cachedEntitlement          Json?     @db.JsonB
+  lastSuccessfulRefreshAt    DateTime?
+  lastRefreshAttemptAt       DateTime?
+  lastRefreshError           String?
+  updatedAt                  DateTime  @updatedAt
+  createdAt                  DateTime  @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("host_licensing_trust_states")
 }
 
 // -----------------------------------------------------------------------------

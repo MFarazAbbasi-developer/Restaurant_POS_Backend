@@ -23,6 +23,23 @@ const envSchema = z.object({
     .default('5000')
     .transform((val) => parseInt(val, 10))
     .pipe(z.number().positive().max(65535)),
+  /**
+   * Optional loopback HTTPS port (Phase 2D.6). When unset, defaults to PORT + 1.
+   * HTTPS only starts when a valid host TLS credential is available.
+   */
+  HTTPS_PORT: z
+    .string()
+    .optional()
+    .transform((val) => {
+      if (val === undefined || val.trim() === '') return undefined;
+      return parseInt(val, 10);
+    })
+    .pipe(z.number().int().positive().max(65535).optional()),
+  /** Set to "0" to skip HTTPS listener even when a cert exists (local HTTP-only). */
+  LAN_HTTPS_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v !== '0' && v !== 'false'),
   API_PREFIX: z.string().default('/api/v1'),
   DATABASE_URL: z.string().url().min(1, 'DATABASE_URL is required'),
   CORS_ORIGIN: z.string().default('*'),

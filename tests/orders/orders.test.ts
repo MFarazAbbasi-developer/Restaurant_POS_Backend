@@ -2,6 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
+import {
+  assertDisposableTestDatabase,
+  ensureAuthTestFixture,
+} from '../helpers/seed-auth-fixture.js';
 
 describe('FARMAX POS - Core Order & Billing Module Tests', () => {
   let restaurantId: string;
@@ -17,20 +21,18 @@ describe('FARMAX POS - Core Order & Billing Module Tests', () => {
   let testModifierGroupId: string;
   let testModifierId: string;
 
+  let testZoneId: string;
   let testTableId: string;
 
   let createdOrder1Id: string;
   let createdOrder2Id: string;
 
   beforeAll(async () => {
-    // 1. Fetch primary seeded restaurant
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: 'flagship-shinwari' },
-    });
-    if (!restaurant) {
-      throw new Error('Database not seeded! Please run prisma seed.');
-    }
-    restaurantId = restaurant.id;
+    assertDisposableTestDatabase(process.env.DATABASE_URL ?? '');
+
+    // Deterministic auth/restaurant fixture — does not require demo seed or zones.
+    const fixture = await ensureAuthTestFixture();
+    restaurantId = fixture.restaurantId;
 
     // 2. Fetch roles
     const managerRole = await prisma.role.findFirst({
@@ -204,12 +206,30 @@ describe('FARMAX POS - Core Order & Billing Module Tests', () => {
     });
     testModifierId = modifier.id;
 
-    // 6. Seed Dining Table
-    const zone = await prisma.zone.findFirst({ where: { restaurantId } });
+    // 6. Suite-owned zone + table (never rely on demo floor plans)
+    const zone = await prisma.zone.upsert({
+      where: {
+        restaurantId_name: {
+          restaurantId,
+          name: 'Order Test Zone',
+        },
+      },
+      update: { isActive: true },
+      create: {
+        restaurantId,
+        name: 'Order Test Zone',
+        sortOrder: 99,
+      },
+    });
+    testZoneId = zone.id;
+
+    await prisma.restaurantTable.deleteMany({
+      where: { restaurantId, name: 'T-ORDER-10' },
+    });
     const table = await prisma.restaurantTable.create({
       data: {
         restaurantId,
-        zoneId: zone!.id,
+        zoneId: zone.id,
         name: 'T-ORDER-10',
         capacity: 4,
         status: 'AVAILABLE',
@@ -250,6 +270,9 @@ describe('FARMAX POS - Core Order & Billing Module Tests', () => {
     }
     if (testTableId) {
       await prisma.restaurantTable.deleteMany({ where: { id: testTableId } });
+    }
+    if (testZoneId) {
+      await prisma.zone.deleteMany({ where: { id: testZoneId } });
     }
     await prisma.deliveryZone.deleteMany({
       where: { name: 'Order Test Delivery Zone' },

@@ -9,6 +9,10 @@ import { authenticate } from '../../src/common/middlewares/auth.middleware.js';
 import { ApiResponse } from '../../src/common/http/response.js';
 import { errorHandler } from '../../src/common/middlewares/error.middleware.js';
 import express, { type Application } from 'express';
+import {
+  assertDisposableTestDatabase,
+  ensureAuthTestFixture,
+} from '../helpers/seed-auth-fixture.js';
 
 describe('FARMAX POS - Authentication Module Tests', () => {
   let restaurantId: string;
@@ -26,50 +30,14 @@ describe('FARMAX POS - Authentication Module Tests', () => {
   let rbacApp: Application;
 
   beforeAll(async () => {
-    // 1. Fetch the seeded default restaurant
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { slug: 'flagship-shinwari' },
-    });
-    if (!restaurant) {
-      throw new Error(
-        'Database not seeded! Please run npm run prisma:seed:demo (destructive demo seed)',
-      );
-    }
-    restaurantId = restaurant.id;
+    assertDisposableTestDatabase(process.env.DATABASE_URL ?? '');
 
-    // 2. Fetch seeded users
-    const owner = await prisma.user.findUnique({
-      where: {
-        restaurantId_username: {
-          restaurantId,
-          username: 'owner_admin',
-        },
-      },
-    });
-    const manager = await prisma.user.findUnique({
-      where: {
-        restaurantId_username: {
-          restaurantId,
-          username: 'manager_john',
-        },
-      },
-    });
-    const cashier = await prisma.user.findUnique({
-      where: {
-        restaurantId_username: {
-          restaurantId,
-          username: 'cashier_sarah',
-        },
-      },
-    });
-
-    if (!owner || !manager || !cashier) {
-      throw new Error('Default users not found. Run seed first.');
-    }
-
-    ownerUserId = owner.id;
-    managerUserId = manager.id;
-    cashierUserId = cashier.id;
+    // Non-destructive upsert of demo restaurant + staff (no TRUNCATE / demo wipe).
+    const fixture = await ensureAuthTestFixture();
+    restaurantId = fixture.restaurantId;
+    ownerUserId = fixture.ownerUserId;
+    managerUserId = fixture.managerUserId;
+    cashierUserId = fixture.cashierUserId;
 
     // 3. Create an inactive user for testing inactive account rejection
     const inactiveUser = await prisma.user.upsert({

@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
+import { assertDisposableTestDatabase } from '../helpers/seed-auth-fixture.js';
 
 describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', () => {
   let restaurantAId: string;
@@ -20,9 +21,11 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
   let itemSteakId: string;
   let itemSodaId: string;
 
-  let tableAId: string;
+  let zoneAId: string;
 
   beforeAll(async () => {
+    assertDisposableTestDatabase(process.env.DATABASE_URL ?? '');
+
     // 1. Create Suite-Isolated Restaurant A
     const restaurantA = await prisma.restaurant.create({
       data: {
@@ -170,11 +173,12 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
     });
     tenantBToken = userBLogin.body.data.accessToken;
 
-    // 7. Seed categories & menu items for Restaurant A
+    // 7. Seed categories & menu items for Restaurant A.
+    // Avoid ready-to-serve heuristics in order.service (Beverages / BEV- / drink|soda…).
     const categoryGrill = await prisma.category.create({
       data: {
         restaurantId: restaurantAId,
-        name: 'Grill & Steaks ' + Date.now(),
+        name: 'Hot Grill Line ' + Date.now(),
         sortOrder: 1,
       },
     });
@@ -183,7 +187,7 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
     const categoryBeverages = await prisma.category.create({
       data: {
         restaurantId: restaurantAId,
-        name: 'Beverages ' + Date.now(),
+        name: 'Fountain Line ' + Date.now(),
         sortOrder: 2,
       },
     });
@@ -215,14 +219,14 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
       data: {
         restaurantId: restaurantAId,
         categoryId: categoryBeveragesId,
-        itemCode: 'BEV-01-' + Date.now(),
+        itemCode: 'FTN-01-' + Date.now(),
         name: 'Craft Cola',
         basePrice: 3.5,
       },
     });
     itemSodaId = itemSoda.id;
 
-    // Seating Zone & Table
+    // Seating zone — each order describe allocates its own table (no cross-append).
     const zone = await prisma.zone.create({
       data: {
         restaurantId: restaurantAId,
@@ -230,16 +234,37 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
         sortOrder: 1,
       },
     });
+    zoneAId = zone.id;
+  });
 
+  async function createDedicatedTable(label: string): Promise<string> {
     const table = await prisma.restaurantTable.create({
       data: {
         restaurantId: restaurantAId,
-        zoneId: zone.id,
-        name: 'T-01',
+        zoneId: zoneAId,
+        name: `${label}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         capacity: 4,
+        status: 'AVAILABLE',
       },
     });
-    tableAId = table.id;
+    return table.id;
+  }
+
+  afterAll(async () => {
+    // Suite-created restaurants cascade roles/users/orders/tables via FK where configured.
+    if (restaurantAId) {
+      await prisma.orderItemModifier.deleteMany({
+        where: { orderItem: { order: { restaurantId: restaurantAId } } },
+      });
+      await prisma.orderItem.deleteMany({
+        where: { order: { restaurantId: restaurantAId } },
+      });
+      await prisma.order.deleteMany({ where: { restaurantId: restaurantAId } });
+      await prisma.restaurant.delete({ where: { id: restaurantAId } }).catch(() => undefined);
+    }
+    if (restaurantBId) {
+      await prisma.restaurant.delete({ where: { id: restaurantBId } }).catch(() => undefined);
+    }
   });
 
   // ---------------------------------------------------------------------------
@@ -345,23 +370,32 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
   describe('2. KDS Active Queue & Ticket Filtering', () => {
     let dineInOrderId: string;
     let takeawayOrderId: string;
+    let queueTableId: string;
 
     beforeAll(async () => {
-      // Create Dine-In Order
+      // Private table so later bump suites cannot append into these tickets.
+      queueTableId = await createDedicatedTable('T-QUEUE');
+
       const dineInRes = await request(app)
         .post('/api/v1/orders')
         .set('Authorization', `Bearer ${cashierAToken}`)
         .send({
           orderType: 'DINE_IN',
-          tableId: tableAId,
+          tableId: queueTableId,
           items: [
             { menuItemId: itemBurgerId, quantity: 2, specialInstructions: 'Medium rare' },
             { menuItemId: itemSodaId, quantity: 2 },
           ],
         });
+      expect(dineInRes.status).toBe(201);
+      expect(dineInRes.body.data.order.status).toBe('PENDING');
       dineInOrderId = dineInRes.body.data.order.id;
+      expect(
+        dineInRes.body.data.order.items.every(
+          (i: { kitchenStatus: string }) => i.kitchenStatus === 'PENDING',
+        ),
+      ).toBe(true);
 
-      // Create Takeaway Order
       const takeawayRes = await request(app)
         .post('/api/v1/orders')
         .set('Authorization', `Bearer ${cashierAToken}`)
@@ -371,6 +405,7 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
           customerPhone: '+92 300 9988776',
           items: [{ menuItemId: itemSteakId, quantity: 1, specialInstructions: 'Well done' }],
         });
+      expect(takeawayRes.status).toBe(201);
       takeawayOrderId = takeawayRes.body.data.order.id;
     });
 
@@ -435,14 +470,18 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
     let orderToBumpId: string;
 
     beforeAll(async () => {
+      // Dedicated table — createOrder appends into an existing active dine-in on the same table.
+      const bumpTableId = await createDedicatedTable('T-BUMP');
       const orderRes = await request(app)
         .post('/api/v1/orders')
         .set('Authorization', `Bearer ${cashierAToken}`)
         .send({
           orderType: 'DINE_IN',
-          tableId: tableAId,
+          tableId: bumpTableId,
           items: [{ menuItemId: itemBurgerId, quantity: 1 }],
         });
+      expect(orderRes.status).toBe(201);
+      expect(orderRes.body.data.order.status).toBe('PENDING');
       orderToBumpId = orderRes.body.data.order.id;
     });
 
@@ -501,20 +540,26 @@ describe('FARMAX POS - Kitchen Display System (KDS) & Operations Module Tests', 
     let itemId2: string;
 
     beforeAll(async () => {
+      const multiTableId = await createDedicatedTable('T-MULTI');
       const orderRes = await request(app)
         .post('/api/v1/orders')
         .set('Authorization', `Bearer ${cashierAToken}`)
         .send({
           orderType: 'DINE_IN',
-          tableId: tableAId,
+          tableId: multiTableId,
           items: [
             { menuItemId: itemBurgerId, quantity: 1 },
             { menuItemId: itemSteakId, quantity: 1 },
           ],
         });
+      expect(orderRes.status).toBe(201);
+      expect(orderRes.body.data.order.status).toBe('PENDING');
+      expect(orderRes.body.data.order.items).toHaveLength(2);
       orderMultiId = orderRes.body.data.order.id;
       itemId1 = orderRes.body.data.order.items[0].id;
       itemId2 = orderRes.body.data.order.items[1].id;
+      expect(orderRes.body.data.order.items[0].kitchenStatus).toBe('PENDING');
+      expect(orderRes.body.data.order.items[1].kitchenStatus).toBe('PENDING');
     });
 
     it('should advance order status to PREPARING when first item starts PREPARING', async () => {

@@ -20,6 +20,7 @@ import { reservationsRouter } from '../modules/reservations/reservations.routes.
 import { purchasingRouter } from '../modules/purchasing/purchasing.routes.js';
 import { expensesRouter } from '../modules/expenses/expenses.routes.js';
 import { setupRouter } from '../modules/setup/setup.routes.js';
+import { lanClientRouter, lanStaffRouter } from '../modules/lan/lan.routes.js';
 
 export const apiRouter = Router();
 
@@ -85,6 +86,12 @@ apiRouter.use('/purchasing', purchasingRouter);
 
 // 19. Expenses & Expense Management module
 apiRouter.use('/expenses', expensesRouter);
+
+// 20. LAN terminal roster + Plane B POS boundary (Phase 2D.3 / 2D.5)
+// Mount Plane B (/lan/v1) BEFORE staff (/lan) so JWT authenticate is not applied to client routes.
+// Remote POS surface: /lan/v1/pos/* (Plane B + entitlement). Local /api/v1/* unchanged.
+apiRouter.use('/lan/v1', lanClientRouter);
+apiRouter.use('/lan', lanStaffRouter);
 
 /**
  * Future Business Modules:
